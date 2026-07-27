@@ -1,0 +1,25 @@
+osvbng:
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  standalone:
+    coreAddress: 192.168.88.10/24
+  cgnat:
+    outsideAddresses:
+      - 192.168.88.11
+      - 192.168.88.12
+      - 192.168.88.13
+      - 192.168.88.14
+      - 192.168.88.15
+  ha:
+    enabled: false
+
+bngblaster:
+  enabled: false
+
+trafficTest:
+  enabled: true
+  imagePullSecrets:
+    - name: ghcr-pull
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+

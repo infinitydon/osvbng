@@ -9,8 +9,8 @@ metadata:
 data:
   {{- range $index, $member := .Values.osvbng.ha.members }}
   {{ $index }}.env: |
-    OSVBNG_HA_NODE_ID={{ $member.nodeId | quote }}
-    OSVBNG_CORE_ADDRESS={{ $member.coreAddress | quote }}
+    OSVBNG_HA_NODE_ID={{ required (printf "osvbng.ha.members[%d].nodeId is required" $index) $member.nodeId | quote }}
+    OSVBNG_CORE_ADDRESS={{ required (printf "osvbng.ha.members[%d].coreAddress is required" $index) $member.coreAddress | quote }}
     OSVBNG_HA_PRIORITY={{ $member.priority | quote }}
     OSVBNG_HA_PREEMPT={{ $member.preempt | quote }}
     OSVBNG_HA_PEER_ORDINAL={{ ternary "1" "0" (eq $index 0) | quote }}

@@ -83,6 +83,37 @@ helm upgrade --install osvbng ./helm-chart \
   --timeout 10m
 ```
 
+The chart supports in-place transitions between two modes:
+
+```yaml
+# One BNG replica
+osvbng:
+  standalone:
+    coreAddress: 192.168.88.10/24
+  ha:
+    enabled: false
+```
+
+```yaml
+# Two BNG replicas
+osvbng:
+  ha:
+    enabled: true
+    members:
+      - nodeId: bng-a
+        coreAddress: 192.168.88.10/24
+        priority: 100
+        preempt: false
+      - nodeId: bng-b
+        coreAddress: 192.168.88.11/24
+        priority: 90
+        preempt: false
+```
+
+`standalone.coreAddress` is required only when HA is disabled. HA member
+addresses are explicit, independent, and do not need to be consecutive.
+Use `examples/standalone-values.yaml` or `examples/ha-values.yaml`.
+
 BNG Blaster runs as a post-install validation Job. It succeeds after all
 configured sessions receive DHCP ACKs, then terminates and leaves its logs as
 test evidence.
@@ -123,7 +154,7 @@ The chart has an interactive traffic-test mode containing:
   forwarding pod.
 
 The access test interface is exclusive, so traffic-test mode and the
-100-session BNG Blaster deployment cannot run simultaneously. Helm rejects
+100-session BNG Blaster Job cannot run simultaneously. Helm rejects
 that invalid combination. Switch from the scale test to interactive mode:
 
 ```shell
@@ -192,8 +223,8 @@ are already allocated.
 
 The tested HA allocation is:
 
-- BNG A core: `192.168.88.10/24` on `ebpf-bng-node-01`
-- BNG B core: `192.168.88.11/24` on `ebpf-bng-node-02`
+- BNG A identity: `osvbng-0`, core `192.168.88.10/24`
+- BNG B identity: `osvbng-1`, core `192.168.88.11/24`
 - shared PBA CGNAT pool: `192.168.88.12-15`
 - virtual MAC: `02:00:5e:00:01:01`
 

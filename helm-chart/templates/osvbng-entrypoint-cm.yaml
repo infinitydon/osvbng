@@ -255,7 +255,7 @@ data:
     vppctl -s /run/osvbng/cli.sock lcp default netns dataplane
 
     # Install the core address early and provide a default route for the
-    # standalone upstream gateway used by this chart.
+    # Install this member's core address and the shared upstream gateway.
     vppctl -s /run/osvbng/cli.sock set interface ip address core "$OSVBNG_CORE_ADDRESS"
     if [ "$OSVBNG_INSTALL_DEFAULT_ROUTE" = "true" ]; then
         vppctl -s /run/osvbng/cli.sock ip route add 0.0.0.0/0 \

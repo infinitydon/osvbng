@@ -17,8 +17,9 @@ osvbng:
     hugepages1Gi: "2Gi"
   nodeSelector:
     osvbng.infinitydon.com/dpdk-ha: "true"
+  standalone:
+    coreAddress: "192.168.88.10/24"
   core:
-    address: "192.168.88.10/24"
     nextHop: "192.168.88.1"
     installDefaultRoute: true
   cgnat:

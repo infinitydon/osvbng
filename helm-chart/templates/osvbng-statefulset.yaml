@@ -5,7 +5,9 @@ metadata:
 spec:
   serviceName: osvbng-headless
   replicas: {{ ternary (len .Values.osvbng.ha.members) 1 .Values.osvbng.ha.enabled }}
-  podManagementPolicy: {{ ternary "Parallel" "OrderedReady" .Values.osvbng.ha.enabled }}
+  # Keep immutable StatefulSet fields identical across standalone/HA mode
+  # transitions. Parallel is also required for simultaneous HA peer startup.
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app: osvbng
@@ -87,7 +89,11 @@ spec:
           - name: OSVBNG_DPDK_SOCKET_MEMORY
             value: {{ .Values.osvbng.dpdk.socketMemory | quote }}
           - name: OSVBNG_CORE_ADDRESS
-            value: {{ .Values.osvbng.core.address | quote }}
+            {{- if .Values.osvbng.ha.enabled }}
+            value: ""
+            {{- else }}
+            value: {{ required "osvbng.standalone.coreAddress is required when HA is disabled" .Values.osvbng.standalone.coreAddress | quote }}
+            {{- end }}
           - name: OSVBNG_CORE_NEXT_HOP
             value: {{ .Values.osvbng.core.nextHop | quote }}
           - name: OSVBNG_INSTALL_DEFAULT_ROUTE
