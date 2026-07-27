@@ -146,6 +146,46 @@ range is not globally routed, `ue-test-upstream` applies a second masquerade
 from that pool to its Kubernetes `eth0` solely for public Internet testing.
 In production, advertise a real public pool upstream and remove the test pod.
 
+The tested lab egress path is:
+
+```text
+UE 10.255.0.2
+  -> osvbng PBA CGNAT 198.18.0.0:1024-1535
+  -> core link 192.0.2.1/30
+  -> ue-test-upstream net1 192.0.2.2/30
+  -> lab-only MASQUERADE to pod eth0 10.1.21.9
+  -> Calico veth on ebpf-bng-node-01
+  -> worker eth0 192.168.88.165
+  -> worker default gateway 192.168.88.1
+  -> site Internet edge
+```
+
+Inspect the BNG translation, lab-edge rule, and worker route:
+
+```shell
+kubectl exec -n osvbng deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/cgnat/pools
+kubectl exec -n osvbng deployment/ue-test -c ue -- \
+  curl -sS "http://osvbng:8080/api/show/cgnat/sessions?inside-ip=10.255.0.2"
+kubectl exec -n osvbng deployment/ue-test-upstream -- ip route
+kubectl exec -n osvbng deployment/ue-test-upstream -- \
+  iptables -t nat -L POSTROUTING -n -v
+kubectl -n kube-system exec \
+  "$(kubectl -n kube-system get pod -l k8s-app=calico-node \
+    --field-selector spec.nodeName=ebpf-bng-node-01 \
+    -o jsonpath='{.items[0].metadata.name}')" -- ip -4 route
+```
+
+Capture translated traffic on the core link while generating traffic from
+`bbl1`:
+
+```shell
+kubectl exec -it -n osvbng deployment/ue-test-upstream -- \
+  tcpdump -ni net1 'net 198.18.0.0/29'
+kubectl exec -n osvbng deployment/ue-test -c ue -- \
+  curl --interface bbl1 -I https://example.com
+```
+
 The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change
 `trafficTest.outerVlan` and `trafficTest.innerVlan` when those identifiers
 are already allocated.
