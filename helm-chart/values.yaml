@@ -1,6 +1,5 @@
 osvbng:
-  # v0.2.0 plus upstream commit 3cea1c7, which adds the omitted VPP DPDK package.
-  image: "ghcr.io/infinitydon/osvbng:v0.2.0-dpdk.1@sha256:5f6c50606e6d69cd1d07b5f249128889638796192cae677b27a3f5018ae620bf"
+  image: "docker.io/veesixnetworks/osvbng:v0.16.0@sha256:d343e3e6f1bec38e011cda569fc799ab99927aee189e6a7dd45c073a5a462782"
   pullPolicy: IfNotPresent
   imagePullSecrets: []
   privileged: true
@@ -17,6 +16,10 @@ osvbng:
     hugepages1Gi: "2Gi"
   nodeSelector:
     kubernetes.io/hostname: ebpf-bng-node-01
+  core:
+    address: "192.0.2.1/30"
+    nextHop: "192.0.2.2"
+    installDefaultRoute: true
   dpdk:
     enabled: true
     # Direct host VFIO access. Kubernetes does not arbitrate these devices;
@@ -52,9 +55,38 @@ bngblaster:
       cpu: "2"
       memory: "1Gi"
 
+trafficTest:
+  # Interactive UE and upstream gateway mode. This is mutually exclusive
+  # with BNG Blaster because host-device CNI moves each NIC into one pod.
+  enabled: false
+  image: "nicolaka/netshoot:v0.13@sha256:a20c2531bf35436ed3766cd6cfe89d352b050ccc4d7005ce6400adf97503da1b"
+  bngblasterImage: "ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2"
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  outerVlan: 100
+  outerVlanProtocol: 802.1Q
+  innerVlan: 100
+  coreInterface: net1
+  coreAddress: 192.0.2.2/30
+  bngCoreAddress: 192.0.2.1
+  subscriberNetwork: 10.255.0.0/24
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "1"
+      memory: "512Mi"
+
 multus:
   enabled: true
   bngblaster:
+    devices:
+      accessHostDevice: "enp8s21"
+      coreHostDevice: "enp8s22"
+  trafficTest:
     devices:
       accessHostDevice: "enp8s21"
       coreHostDevice: "enp8s22"

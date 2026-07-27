@@ -205,9 +205,16 @@ data:
     sleep 5
     vppctl -s /run/osvbng/cli.sock show interface
 
-    # v0.2.0 reads dataplane.lcp-netns but does not program VPP's default LCP
-    # namespace before creating interface pairs. Set it through VPP's CLI.
+    # Keep VPP's default LCP namespace explicit for chart upgrades.
     vppctl -s /run/osvbng/cli.sock lcp default netns dataplane
+
+    # Install the core address early and provide a default route for the
+    # standalone upstream gateway used by this chart.
+    vppctl -s /run/osvbng/cli.sock set interface ip address core "$OSVBNG_CORE_ADDRESS"
+    if [ "$OSVBNG_INSTALL_DEFAULT_ROUTE" = "true" ]; then
+        vppctl -s /run/osvbng/cli.sock ip route add 0.0.0.0/0 \
+            via "$OSVBNG_CORE_NEXT_HOP" core
+    fi
     
     echo "Setting dataplane API socket permissions..."
     chmod 660 /run/osvbng/dataplane_api.sock 2>/dev/null || true

@@ -59,6 +59,12 @@ spec:
             value: {{ .Values.osvbng.dpdk.txQueues | quote }}
           - name: OSVBNG_DPDK_SOCKET_MEMORY
             value: {{ .Values.osvbng.dpdk.socketMemory | quote }}
+          - name: OSVBNG_CORE_ADDRESS
+            value: {{ .Values.osvbng.core.address | quote }}
+          - name: OSVBNG_CORE_NEXT_HOP
+            value: {{ .Values.osvbng.core.nextHop | quote }}
+          - name: OSVBNG_INSTALL_DEFAULT_ROUTE
+            value: {{ .Values.osvbng.core.installDefaultRoute | quote }}
           ports:
           - name: grpc
             containerPort: {{ .Values.osvbng.ports.grpc }}

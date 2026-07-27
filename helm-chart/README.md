@@ -1,6 +1,6 @@
 # osvbng Helm chart
 
-This chart deploys osvbng `v0.2.0` on Kubernetes with two directly mounted
+This chart deploys osvbng `v0.16.0` on Kubernetes with two directly mounted
 VFIO/DPDK devices and BNG Blaster `0.9.37`. The default profile is sized for
 100 concurrent IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
 
@@ -51,6 +51,9 @@ osvbng:
 bngblaster:
   imagePullSecrets:
     - name: ghcr-pull
+trafficTest:
+  imagePullSecrets:
+    - name: ghcr-pull
 ```
 
 ## Install
@@ -86,30 +89,54 @@ VPP interfaces `access`, `access.100`, and `core` in the up state.
 
 ## Images
 
-- osvbng is based on upstream stable `v0.2.0`. Its stable image omitted
-  `vpp-plugin-dpdk`; the chart image applies upstream commit `3cea1c7`.
-- No local osvbng source patch is applied. The chart creates the upstream
-  `dataplane` LCP network namespace before startup, preventing its management
-  `eth0` from colliding with the pod's Kubernetes `eth0`.
+- osvbng uses the official upstream stable `v0.16.0` image.
+- No local osvbng source patch is applied. Its LCP interfaces are created in
+  the dedicated `dataplane` network namespace.
 - BNG Blaster is built from the official `0.9.37` Ubuntu package using the
   reproducible Dockerfile in `images/bngblaster`.
 - Runtime images are pinned by digest in `values.yaml`.
 
 ## Interactive subscriber test
 
-BNG Blaster is the scale and protocol test tool; it does not create a
-UERANSIM-style Linux TUN interface for each subscriber. Use a separate,
-single-subscriber Linux namespace or container with a DHCP/PPPoE client for
-interactive `ping`, DNS, and `curl` tests. It must attach to an unused access
-port or VLAN path; do not attach it to a host-device interface already owned
-by the BNG Blaster pod.
+The chart has an interactive traffic-test mode containing:
+
+- `ue-test`, which runs a single BNG Blaster session with its per-session
+  TUN feature plus a netshoot sidecar. The sidecar exposes the DHCP-assigned
+  subscriber as Linux interface `bbl1`.
+- `ue-test-upstream`, which connects to the BNG core interface and provides
+  routing/NAT toward its Kubernetes network.
+
+The two physical interfaces use exclusive `host-device` CNI attachments, so
+traffic-test mode and BNG Blaster cannot run simultaneously. Helm rejects
+that invalid combination. Switch from the scale test to interactive mode:
+
+```shell
+helm upgrade osvbng ./helm-chart \
+  --namespace osvbng \
+  --set bngblaster.enabled=false \
+  --set trafficTest.enabled=true \
+  --wait
+```
+
+Run real subscriber traffic:
+
+```shell
+kubectl exec -it -n osvbng deployment/ue-test -c ue -- sh
+ip -4 address show bbl1
+ping -I bbl1 -c 3 10.255.0.1
+ping -I bbl1 -c 3 192.0.2.2
+ping -I bbl1 -c 3 1.1.1.1
+curl --interface bbl1 -I https://example.com
+```
+
+The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change
+`trafficTest.outerVlan` and `trafficTest.innerVlan` when those identifiers
+are already allocated.
 
 ## RADIUS
 
-osvbng `v0.2.0` supports local and HTTP authentication providers but does not
-include a functional native RADIUS provider. RADIUS can be integrated by
-deploying FreeRADIUS plus an HTTP-to-RADIUS AAA bridge and selecting osvbng's
-HTTP provider. Merely deploying FreeRADIUS is insufficient because this
-stable osvbng release does not send RADIUS requests itself. Keep the local
-provider for the baseline 100-session test; add the bridge as an optional
-component after its authentication and accounting request mapping is tested.
+osvbng `v0.16.0` has a native `subscriber.auth.radius` provider supporting
+authentication, accounting, ordered server failover, CoA/Disconnect, VRF
+binding, and attribute mappings. The chart currently defaults to local
+allow-all authentication for repeatable baseline tests. A FreeRADIUS
+component and opt-in RADIUS values can be added without an HTTP bridge.

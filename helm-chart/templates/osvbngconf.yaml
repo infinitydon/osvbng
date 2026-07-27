@@ -17,11 +17,14 @@ data:
       groups:
         default:
           access-type: ipoe
+          vlan-tpid: dot1q
           ipv4-profile: default
           vlans:
             - svlan: "100"
               cvlan: any
               interface: loop100
+              parent-interface: access
+              access-types: [ipoe]
           bgp:
             enabled: false
             advertise-pools: false
@@ -55,7 +58,7 @@ data:
         lcp: true
         address:
           ipv4:
-            - 192.0.2.1/30
+            - {{ .Values.osvbng.core.address }}
       loop100:
         description: Subscriber gateway
         enabled: true
@@ -80,7 +83,8 @@ data:
         listen_address: :9090
       northbound.api:
         enabled: true
-        listen_address: :8080
+        listeners:
+          - address: :8080
       subscriber.auth.local:
         allow_all: true
         database_path: /var/lib/osvbng/subscribers.db
