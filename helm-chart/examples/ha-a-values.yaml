@@ -1,0 +1,30 @@
+osvbng:
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  core:
+    address: 192.168.88.10/24
+    nextHop: 192.168.88.1
+  cgnat:
+    outsideAddresses:
+      - 192.168.88.12
+      - 192.168.88.13
+      - 192.168.88.14
+      - 192.168.88.15
+  ha:
+    enabled: true
+    nodeId: bng-a
+    peerAddress: osvbng.osvbng-ha-b.svc.cluster.local:50051
+    srg:
+      priority: 100
+      preempt: false
+
+bngblaster:
+  enabled: false
+
+trafficTest:
+  enabled: true
+  imagePullSecrets:
+    - name: ghcr-pull
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+

@@ -10,6 +10,9 @@ spec:
     - name: grpc
       port: {{ .Values.osvbng.ports.grpc }}
       targetPort: grpc
+    - name: ha
+      port: {{ .Values.osvbng.ports.ha }}
+      targetPort: ha
     - name: prometheus
       port: {{ .Values.osvbng.ports.prometheus }}
       targetPort: prometheus

@@ -6,6 +6,7 @@ osvbng:
   serviceType: ClusterIP
   ports:
     grpc: 50050
+    ha: 50051
     prometheus: 9090
     http: 8080
   mountSysKernelDebug: true
@@ -37,17 +38,33 @@ osvbng:
     blockSize: 512
     maxBlocksPerSubscriber: 2
     maxSessionsPerSubscriber: 2000
+  ha:
+    enabled: false
+    nodeId: bng-a
+    listenAddress: "0.0.0.0:50051"
+    peerAddress: ""
+    heartbeat:
+      interval: 1s
+      timeout: 5s
+    sync:
+      backlogSize: 10000
+      pageSize: 1000
+      bulkSyncTimeout: 60s
+    srg:
+      name: default
+      virtualMac: "02:00:5e:00:01:01"
+      priority: 100
+      preempt: false
+      subscriberGroups:
+        - default
+      interfaces:
+        - access
+      trackPriorityDecrement: 60
+      networks: []
   dpdk:
     enabled: true
-    # Direct host VFIO access. Kubernetes does not arbitrate these devices;
-    # keep one osvbng replica pinned to their dedicated worker.
-    vfioHostPath: /dev/vfio
-    # Dedicated VirtIO VFIO devices on the VLAN-capable worker.
-    pciAddresses:
-      - "0000:09:03.0"
-      - "0000:09:04.0"
-    accessPci: "0000:09:03.0"
-    corePci: "0000:09:04.0"
+    # Allocated by the standalone SR-IOV Network Device Plugin prerequisite.
+    resourceName: qemu-virtio-dpdk.dev/osvbng_vfio
     rxQueues: 2
     txQueues: 2
     socketMemory: "1024"

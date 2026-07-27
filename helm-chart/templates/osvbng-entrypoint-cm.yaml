@@ -37,6 +37,13 @@ data:
     
     # Get array of available cores
     AVAILABLE_CORES=($(parse_cpu_list "$CPUS_ALLOWED"))
+    # Nodes without the static CPU manager expose the whole node cpuset even
+    # when this container has a smaller CPU limit. Cap VPP's core selection to
+    # the Kubernetes CPU limit supplied through resourceFieldRef.
+    if [ -n "${OSVBNG_CPU_COUNT:-}" ] &&
+       [ "${#AVAILABLE_CORES[@]}" -gt "$OSVBNG_CPU_COUNT" ]; then
+        AVAILABLE_CORES=("${AVAILABLE_CORES[@]:0:$OSVBNG_CPU_COUNT}")
+    fi
     TOTAL_CORES=${#AVAILABLE_CORES[@]}
     
     echo "Total cores allocated to pod: $TOTAL_CORES"
@@ -86,6 +93,23 @@ data:
     
     mkdir -p /etc/osvbng
     mkdir -p /var/log/osvbng
+
+    # The device plugin supplies two comma-separated BDFs. PCI enumeration is
+    # consistent on each BNG worker: the lower BDF is access and the higher is
+    # core. Sorting avoids node-specific addresses in the chart.
+    # The SR-IOV plugin converts dots and the resource separator to
+    # underscores, but preserves hyphens from the resource prefix. Since a
+    # hyphen is not valid in a shell variable name, read it through printenv.
+    DEVICE_ENV="$(printenv 'PCIDEVICE_QEMU-VIRTIO-DPDK_DEV_OSVBNG_VFIO' || true)"
+    mapfile -t ALLOCATED_BDFS < <(
+        tr ',' '\n' <<< "$DEVICE_ENV" | sed '/^$/d' | sort -V
+    )
+    if [ "${#ALLOCATED_BDFS[@]}" -ne 2 ]; then
+        echo "Expected exactly 2 qemu-virtio-dpdk.dev/osvbng_vfio devices; got: $DEVICE_ENV"
+        exit 1
+    fi
+    OSVBNG_ACCESS_PCI="${ALLOCATED_BDFS[0]}"
+    OSVBNG_CORE_PCI="${ALLOCATED_BDFS[1]}"
 
     # osvbng creates an LCP management interface named eth0. Keep it in a
     # separate namespace so it cannot collide with the Kubernetes pod veth.

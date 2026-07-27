@@ -35,10 +35,12 @@ spec:
               memory: {{ .Values.osvbng.resources.memory }}
               cpu: {{ .Values.osvbng.resources.cpu }}
               hugepages-1Gi: {{ .Values.osvbng.resources.hugepages1Gi }}
+              {{ .Values.osvbng.dpdk.resourceName | quote }}: 2
             limits:
               memory: {{ .Values.osvbng.resources.memory }}
               cpu: {{ .Values.osvbng.resources.cpu }}
               hugepages-1Gi: {{ .Values.osvbng.resources.hugepages1Gi }}
+              {{ .Values.osvbng.dpdk.resourceName | quote }}: 2
           securityContext:
             privileged: {{ .Values.osvbng.privileged }}
             capabilities:
@@ -49,10 +51,12 @@ spec:
                 - SYS_NICE
                 - SYS_RAWIO
           env:
-          - name: OSVBNG_ACCESS_PCI
-            value: {{ .Values.osvbng.dpdk.accessPci | quote }}
-          - name: OSVBNG_CORE_PCI
-            value: {{ .Values.osvbng.dpdk.corePci | quote }}
+          - name: OSVBNG_CPU_COUNT
+            valueFrom:
+              resourceFieldRef:
+                containerName: osvbng
+                resource: limits.cpu
+                divisor: "1"
           - name: OSVBNG_DPDK_RX_QUEUES
             value: {{ .Values.osvbng.dpdk.rxQueues | quote }}
           - name: OSVBNG_DPDK_TX_QUEUES
@@ -68,6 +72,8 @@ spec:
           ports:
           - name: grpc
             containerPort: {{ .Values.osvbng.ports.grpc }}
+          - name: ha
+            containerPort: {{ .Values.osvbng.ports.ha }}
           - name: prometheus
             containerPort: {{ .Values.osvbng.ports.prometheus }}
           - name: http
@@ -109,10 +115,6 @@ spec:
             mountPath: /dev/shm
           - name: tun
             mountPath: /dev/net/tun
-          {{- if .Values.osvbng.dpdk.enabled }}
-          - name: vfio
-            mountPath: /dev/vfio
-          {{- end }}
       volumes:
       - name: entrypoint-script
         configMap:
@@ -147,9 +149,3 @@ spec:
         hostPath:
           path: /dev/net/tun
           type: CharDevice
-      {{- if .Values.osvbng.dpdk.enabled }}
-      - name: vfio
-        hostPath:
-          path: {{ .Values.osvbng.dpdk.vfioHostPath }}
-          type: Directory
-      {{- end }}

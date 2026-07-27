@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-sriovdp-config
+  namespace: kube-system
+data:
+  config.json: |
+    {
+      "resourceList": [
+        {
+          "resourceName": "osvbng_vfio",
+          "resourcePrefix": "qemu-virtio-dpdk.dev",
+          "selectors": [
+            {
+              "vendors": ["1af4"],
+              "devices": ["1000"],
+              "drivers": ["vfio-pci"]
+            }
+          ]
+        }
+      ]
+    }

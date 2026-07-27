@@ -1,16 +1,15 @@
 # osvbng Helm chart
 
-This chart deploys osvbng `v0.16.0` on Kubernetes with two directly mounted
-VFIO/DPDK devices, native PBA CGNAT, and BNG Blaster `0.9.37`. The default
-profile is sized for 100 concurrent IPoE subscribers using QinQ (S-VLAN 100
-and C-VLANs 100-199).
+This chart deploys osvbng `v0.16.0` on Kubernetes with two VFIO/DPDK devices
+allocated by the SR-IOV Network Device Plugin, native PBA CGNAT, active/standby
+HA, and BNG Blaster `0.9.37`. The default profile is sized for 100 concurrent
+IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
 
 ## Tested environment
 
 - Kubernetes 1.36.2
-- worker `ebpf-bng-node-01`
-- access PCI device `0000:09:03.0`
-- core PCI device `0000:09:04.0`
+- workers `ebpf-bng-node-01` and `ebpf-bng-node-02`
+- two QEMU VirtIO network devices bound to `vfio-pci` per worker
 - 6 exclusive CPUs, 6 GiB memory, and 2 x 1 GiB hugepages
 - BNG Blaster host devices `enp8s21` and `enp8s22`
 
@@ -21,16 +20,29 @@ production deployment, use a real IOMMU rather than no-IOMMU mode.
 
 The cluster must provide:
 
-1. Both configured PCI devices bound to `vfio-pci` on the dedicated worker.
-2. `/dev/vfio` available on that worker, with VFIO and IOMMU support.
-3. At least 2 GiB of allocatable 1 GiB hugepages.
+1. Two QEMU VirtIO (`1af4:1000`) devices bound to `vfio-pci` on each BNG worker.
+2. `/dev/vfio` available on those workers, with VFIO and IOMMU support.
+3. At least 2 GiB of allocatable 1 GiB hugepages per BNG pod.
 4. Multus and the `host-device` CNI for BNG Blaster.
 5. A pull secret when either configured registry package is private.
 
-The chart intentionally does not use DRA or a device plugin. Kubernetes
-therefore does not arbitrate the VFIO devices: deploy only one osvbng pod,
-pin it to the dedicated worker, and do not assign the configured PCI
-addresses to another workload.
+This deployment intentionally does not use DRA. Install the pinned upstream
+SR-IOV Network Device Plugin prerequisite. The selector uses vendor, device,
+and driver—not PCI addresses—and advertises the single resource
+`qemu-virtio-dpdk.dev/osvbng_vfio`:
+
+```shell
+kubectl label node ebpf-bng-node-01 \
+  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+kubectl label node ebpf-bng-node-02 \
+  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+kubectl apply -k helm-chart/sriov-device-plugin
+kubectl rollout status -n kube-system \
+  daemonset/osvbng-sriov-device-plugin
+```
+
+The osvbng pod requests quantity `2`. The entrypoint sorts the two allocated
+BDFs and assigns the lower BDF to `access` and the higher BDF to `core`.
 
 Create a GHCR pull secret when required:
 
@@ -59,8 +71,7 @@ trafficTest:
 
 ## Install
 
-Review the worker, PCI addresses, host devices, and VLANs in `values.yaml`
-before installation:
+Review the worker, host devices, and VLANs in `values.yaml` before installation:
 
 ```shell
 helm lint ./helm-chart
@@ -139,8 +150,8 @@ kubectl exec -n osvbng deployment/ue-test -c ue -- \
   curl -sS http://osvbng:8080/api/show/cgnat/mappings
 ```
 
-The tested lab reserves `192.168.88.10` for the BNG core and
-`192.168.88.11-15` for CGNAT. VPP proxy ARP makes the five translated
+The single-node profile reserves `192.168.88.10` for the BNG core and
+`192.168.88.11-15` for CGNAT. VPP proxy ARP makes the translated
 addresses reachable from the directly connected gateway without adding host
 routes there. For production, prefer a routed public pool and set
 `osvbng.cgnat.proxyArp: false`.
@@ -173,6 +184,70 @@ kubectl exec -n osvbng deployment/ue-test -c ue -- \
 The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change
 `trafficTest.outerVlan` and `trafficTest.innerVlan` when those identifiers
 are already allocated.
+
+## Two-node HA lab
+
+The tested HA allocation is:
+
+- BNG A core: `192.168.88.10/24` on `ebpf-bng-node-01`
+- BNG B core: `192.168.88.11/24` on `ebpf-bng-node-02`
+- shared PBA CGNAT pool: `192.168.88.12-15`
+- virtual MAC: `02:00:5e:00:01:01`
+
+Install one release per namespace so each peer has stable cluster DNS:
+
+```shell
+kubectl create namespace osvbng-ha-a
+kubectl create namespace osvbng-ha-b
+helm upgrade --install osvbng ./helm-chart -n osvbng-ha-b \
+  -f helm-chart/examples/ha-b-values.yaml --wait --timeout 10m
+helm upgrade --install osvbng ./helm-chart -n osvbng-ha-a \
+  -f helm-chart/examples/ha-a-values.yaml --wait --timeout 10m
+```
+
+The A example includes the interactive UE; copy `ghcr-pull` into
+`osvbng-ha-a` first when the BNG Blaster image requires authentication.
+
+Capture election, sync, subscriber, and NAT state:
+
+```shell
+kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/ha/status
+kubectl exec -n osvbng-ha-b osvbng-0 -- \
+  wget -qO- http://127.0.0.1:8080/api/show/ha/status
+kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/ha/sync
+kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/subscriber/sessions
+kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/cgnat/mappings
+```
+
+Trigger a graceful switchover on the active node:
+
+```shell
+kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+  curl -sS -X POST -H 'Content-Type: application/json' -d '{}' \
+  http://osvbng:8080/api/exec/ha/switchover
+```
+
+The lab NAT and exit flow is:
+
+```text
+UE 10.255.0.2
+  -> active osvbng SRG
+  -> PBA CGNAT 192.168.88.12-15
+  -> active worker's DPDK core (.10 on A or .11 on B)
+  -> gateway 192.168.88.1
+  -> worker/site upstream network
+  -> Internet
+```
+
+In the v0.16.0 test, ping and curl survived graceful switchover and removal of
+either BNG pod. After takeover, B continued forwarding the synchronized flow
+while its `subscriber.sessions` and `cgnat.mappings` show handlers returned an
+empty result. Use traffic probes and HA status in addition to those dumps when
+validating this release.
 
 ## RADIUS
 
