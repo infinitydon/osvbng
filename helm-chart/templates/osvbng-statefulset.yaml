@@ -12,6 +12,11 @@ spec:
     metadata:
       labels:
         app: osvbng
+      annotations:
+        checksum/entrypoint: {{ include (print $.Template.BasePath "/osvbng-entrypoint-cm.yaml") . | sha256sum }}
+        checksum/osvbng-config: {{ include (print $.Template.BasePath "/osvbngconf.yaml") . | sha256sum }}
+        checksum/dataplane-config: {{ include (print $.Template.BasePath "/dataplane-conf.yaml") . | sha256sum }}
+        checksum/frr-config: {{ include (print $.Template.BasePath "/frr-conf.yaml") . | sha256sum }}
     spec:
       {{- with .Values.osvbng.imagePullSecrets }}
       imagePullSecrets:
@@ -19,11 +24,6 @@ spec:
       {{- end }}
       nodeSelector:
         {{- toYaml .Values.osvbng.nodeSelector | nindent 8 }}
-      {{- if .Values.osvbng.dpdk.enabled }}
-      resourceClaims:
-        - name: dpdk
-          resourceClaimTemplateName: {{ .Release.Name }}-osvbng-dpdk
-      {{- end }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: osvbng
@@ -31,10 +31,6 @@ spec:
           imagePullPolicy: {{ .Values.osvbng.pullPolicy }}
           command: ["/scripts/docker-entrypoint.sh"]
           resources:
-            {{- if .Values.osvbng.dpdk.enabled }}
-            claims:
-              - name: dpdk
-            {{- end }}
             requests:
               memory: {{ .Values.osvbng.resources.memory }}
               cpu: {{ .Values.osvbng.resources.cpu }}
@@ -107,6 +103,10 @@ spec:
             mountPath: /dev/shm
           - name: tun
             mountPath: /dev/net/tun
+          {{- if .Values.osvbng.dpdk.enabled }}
+          - name: vfio
+            mountPath: /dev/vfio
+          {{- end }}
       volumes:
       - name: entrypoint-script
         configMap:
@@ -141,3 +141,9 @@ spec:
         hostPath:
           path: /dev/net/tun
           type: CharDevice
+      {{- if .Values.osvbng.dpdk.enabled }}
+      - name: vfio
+        hostPath:
+          path: {{ .Values.osvbng.dpdk.vfioHostPath }}
+          type: Directory
+      {{- end }}

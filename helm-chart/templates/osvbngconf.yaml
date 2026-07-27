@@ -85,6 +85,7 @@ data:
         allow_all: true
         database_path: /var/lib/osvbng/subscribers.db
     dataplane:
+      lcp-netns: dataplane
       statseg:
         size: "256m"
         page-size: "4k"

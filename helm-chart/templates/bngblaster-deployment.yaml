@@ -17,6 +17,10 @@ spec:
       {{- if .Values.multus.enabled }}
       annotations:
         k8s.v1.cni.cncf.io/networks: bngblaster-access, bngblaster-core
+        checksum/config: {{ include (print $.Template.BasePath "/bngblaster-config.yaml") . | sha256sum }}
+      {{- else }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/bngblaster-config.yaml") . | sha256sum }}
       {{- end }}
     spec:
       {{- with .Values.bngblaster.imagePullSecrets }}

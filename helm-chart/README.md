@@ -1,13 +1,12 @@
 # osvbng Helm chart
 
-This chart deploys osvbng `v0.2.0` on Kubernetes with two DRA-managed
+This chart deploys osvbng `v0.2.0` on Kubernetes with two directly mounted
 VFIO/DPDK devices and BNG Blaster `0.9.37`. The default profile is sized for
 100 concurrent IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
 
 ## Tested environment
 
 - Kubernetes 1.36.2
-- `linux-net.dra.infinitydon.com` DRA driver
 - worker `ebpf-bng-node-01`
 - access PCI device `0000:09:03.0`
 - core PCI device `0000:09:04.0`
@@ -21,12 +20,16 @@ production deployment, use a real IOMMU rather than no-IOMMU mode.
 
 The cluster must provide:
 
-1. Kubernetes DRA (`resource.k8s.io/v1`) and the Linux network DRA driver.
-2. A `linux-net-dpdk` DeviceClass exposing both configured PCI devices.
-3. VFIO and IOMMU support on the target worker.
-4. At least 2 GiB of allocatable 1 GiB hugepages.
-5. Multus and the `host-device` CNI for BNG Blaster.
-6. A pull secret when either configured registry package is private.
+1. Both configured PCI devices bound to `vfio-pci` on the dedicated worker.
+2. `/dev/vfio` available on that worker, with VFIO and IOMMU support.
+3. At least 2 GiB of allocatable 1 GiB hugepages.
+4. Multus and the `host-device` CNI for BNG Blaster.
+5. A pull secret when either configured registry package is private.
+
+The chart intentionally does not use DRA or a device plugin. Kubernetes
+therefore does not arbitrate the VFIO devices: deploy only one osvbng pod,
+pin it to the dedicated worker, and do not assign the configured PCI
+addresses to another workload.
 
 Create a GHCR pull secret when required:
 
@@ -70,8 +73,9 @@ BNG Blaster starts automatically and establishes the configured sessions.
 ## Verification
 
 ```shell
-kubectl get pods,resourceclaims -n osvbng
-kubectl logs -n osvbng deployment/bngblaster | grep "ALL SESSIONS ESTABLISHED"
+kubectl get pods -n osvbng
+kubectl exec -n osvbng deployment/bngblaster -- \
+  grep -c "DHCP-ACK received" /tmp/bngblaster.log
 kubectl logs -n osvbng osvbng-0 | grep "Session bound" | wc -l
 kubectl exec -n osvbng osvbng-0 -- \
   vppctl -s /run/osvbng/cli.sock show interface
@@ -84,8 +88,9 @@ VPP interfaces `access`, `access.100`, and `core` in the up state.
 
 - osvbng is based on upstream stable `v0.2.0`. Its stable image omitted
   `vpp-plugin-dpdk`; the chart image applies upstream commit `3cea1c7`.
-- The small Kubernetes patch in `images/osvbng` prevents osvbng from trying
-  to create an LCP TAP pair for the pod's existing `eth0` management veth.
+- No local osvbng source patch is applied. The chart creates the upstream
+  `dataplane` LCP network namespace before startup, preventing its management
+  `eth0` from colliding with the pod's Kubernetes `eth0`.
 - BNG Blaster is built from the official `0.9.37` Ubuntu package using the
   reproducible Dockerfile in `images/bngblaster`.
 - Runtime images are pinned by digest in `values.yaml`.
@@ -98,3 +103,13 @@ single-subscriber Linux namespace or container with a DHCP/PPPoE client for
 interactive `ping`, DNS, and `curl` tests. It must attach to an unused access
 port or VLAN path; do not attach it to a host-device interface already owned
 by the BNG Blaster pod.
+
+## RADIUS
+
+osvbng `v0.2.0` supports local and HTTP authentication providers but does not
+include a functional native RADIUS provider. RADIUS can be integrated by
+deploying FreeRADIUS plus an HTTP-to-RADIUS AAA bridge and selecting osvbng's
+HTTP provider. Merely deploying FreeRADIUS is insufficient because this
+stable osvbng release does not send RADIUS requests itself. Keep the local
+provider for the baseline 100-session test; add the bridge as an optional
+component after its authentication and accounting request mapping is tested.

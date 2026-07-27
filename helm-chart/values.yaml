@@ -1,6 +1,6 @@
 osvbng:
   # v0.2.0 plus upstream commit 3cea1c7, which adds the omitted VPP DPDK package.
-  image: "ghcr.io/infinitydon/osvbng:v0.2.0-dpdk.2@sha256:dc467d38c98397568794919ae0a70b4ea83175c36c32511d41e910e88bdfc79c"
+  image: "ghcr.io/infinitydon/osvbng:v0.2.0-dpdk.1@sha256:5f6c50606e6d69cd1d07b5f249128889638796192cae677b27a3f5018ae620bf"
   pullPolicy: IfNotPresent
   imagePullSecrets: []
   privileged: true
@@ -19,9 +19,9 @@ osvbng:
     kubernetes.io/hostname: ebpf-bng-node-01
   dpdk:
     enabled: true
-    driver: linux-net.dra.infinitydon.com
-    deviceClassName: linux-net-dpdk
-    count: 2
+    # Direct host VFIO access. Kubernetes does not arbitrate these devices;
+    # keep one osvbng replica pinned to their dedicated worker.
+    vfioHostPath: /dev/vfio
     # Dedicated VirtIO VFIO devices on the VLAN-capable worker.
     pciAddresses:
       - "0000:09:03.0"

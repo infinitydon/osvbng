@@ -86,6 +86,11 @@ data:
     
     mkdir -p /etc/osvbng
     mkdir -p /var/log/osvbng
+
+    # osvbng creates an LCP management interface named eth0. Keep it in a
+    # separate namespace so it cannot collide with the Kubernetes pod veth.
+    mkdir -p /run/netns
+    ip netns add dataplane 2>/dev/null || true
     
     # REMOVED: Hugepages configuration (K8s handles this via pod spec)
     # K8s will mount hugepages at /dev/hugepages if configured in pod resources
@@ -149,6 +154,7 @@ data:
     echo "Using VFIO devices: access=$OSVBNG_ACCESS_PCI core=$OSVBNG_CORE_PCI"
     test -e "/sys/bus/pci/devices/$OSVBNG_ACCESS_PCI" || { echo "Access PCI device missing"; exit 1; }
     test -e "/sys/bus/pci/devices/$OSVBNG_CORE_PCI" || { echo "Core PCI device missing"; exit 1; }
+    test -c /dev/vfio/vfio || { echo "VFIO control device missing"; exit 1; }
     
     echo "Creating runtime directories..."
     mkdir -p /run/osvbng
@@ -198,6 +204,10 @@ data:
     echo "Waiting for dataplane interfaces to be ready..."
     sleep 5
     vppctl -s /run/osvbng/cli.sock show interface
+
+    # v0.2.0 reads dataplane.lcp-netns but does not program VPP's default LCP
+    # namespace before creating interface pairs. Set it through VPP's CLI.
+    vppctl -s /run/osvbng/cli.sock lcp default netns dataplane
     
     echo "Setting dataplane API socket permissions..."
     chmod 660 /run/osvbng/dataplane_api.sock 2>/dev/null || true
