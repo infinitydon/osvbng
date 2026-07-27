@@ -6,6 +6,21 @@ data:
   docker-entrypoint.sh: |
     #!/bin/bash
     set -e
+
+    {{- if .Values.osvbng.ha.enabled }}
+    # StatefulSet identity selects an explicit HA member. Core addresses are
+    # never calculated and remain attached to the pod ordinal across nodes.
+    MEMBER_FILE="/member-config/${POD_INDEX}.env"
+    if [ ! -f "$MEMBER_FILE" ]; then
+        echo "No HA member configuration for pod index ${POD_INDEX:-unset}"
+        exit 1
+    fi
+    set -a
+    . "$MEMBER_FILE"
+    set +a
+    OSVBNG_HA_PEER_ADDRESS="osvbng-${OSVBNG_HA_PEER_ORDINAL}.osvbng-headless.${POD_NAMESPACE}.svc.cluster.local:{{ .Values.osvbng.ports.ha }}"
+    echo "HA identity: pod=$POD_NAME node_id=$OSVBNG_HA_NODE_ID core=$OSVBNG_CORE_ADDRESS peer=$OSVBNG_HA_PEER_ADDRESS"
+    {{- end }}
     
     # Get actual CPU cores allocated to this pod/container
     CPUS_ALLOWED=$(grep Cpus_allowed_list /proc/self/status | awk '{print $2}')
@@ -138,7 +153,14 @@ data:
     # Process osvbng.yaml template
     echo "Generating osvbng.yaml from template..."
     if [ -f /config-templates/osvbng.yaml.template ]; then
-        cp /config-templates/osvbng.yaml.template /etc/osvbng/osvbng.yaml
+        sed -e "s|__CORE_ADDRESS__|${OSVBNG_CORE_ADDRESS}|g" \
+            {{- if .Values.osvbng.ha.enabled }}
+            -e "s|__HA_NODE_ID__|${OSVBNG_HA_NODE_ID}|g" \
+            -e "s|__HA_PEER_ADDRESS__|${OSVBNG_HA_PEER_ADDRESS}|g" \
+            -e "s|__HA_PRIORITY__|${OSVBNG_HA_PRIORITY}|g" \
+            -e "s|__HA_PREEMPT__|${OSVBNG_HA_PREEMPT}|g" \
+            {{- end }}
+            /config-templates/osvbng.yaml.template > /etc/osvbng/osvbng.yaml
         
         echo "Generated osvbng.yaml"
     else

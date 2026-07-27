@@ -1,15 +1,15 @@
 {{- if .Values.bngblaster.enabled }}
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: bngblaster
+  name: bngblaster-validation
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: bngblaster
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ .Values.bngblaster.activeDeadlineSeconds }}
   template:
     metadata:
       labels:
@@ -23,6 +23,7 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/bngblaster-config.yaml") . | sha256sum }}
       {{- end }}
     spec:
+      restartPolicy: Never
       {{- with .Values.bngblaster.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -46,18 +47,29 @@ spec:
         - name: bngblaster
           image: {{ .Values.bngblaster.image | quote }}
           imagePullPolicy: {{ .Values.bngblaster.pullPolicy }}
-          command: ["bngblaster"]
+          command: ["/bin/bash", "-ec"]
           args:
-            - "-C"
-            - "/config-templates/multiple-multi-qinq.json"
-            - "-S"
-            - "/run/bngblaster.sock"
-            - "-L"
-            - "/tmp/bngblaster.log"
-            - "-l"
-            - "info"
-            - "-l"
-            - "dhcp"
+            - |
+              bngblaster \
+                -C /config-templates/multiple-multi-qinq.json \
+                -S /run/bngblaster.sock \
+                -L /tmp/bngblaster.log \
+                -l info -l dhcp &
+              BBL_PID=$!
+              trap 'kill -TERM "$BBL_PID" 2>/dev/null || true' EXIT
+              while kill -0 "$BBL_PID" 2>/dev/null; do
+                ACKS=$(grep -c "DHCP-ACK received" /tmp/bngblaster.log 2>/dev/null || true)
+                echo "BNG Blaster validation: ${ACKS}/{{ .Values.bngblaster.sessions }} sessions established"
+                if [ "$ACKS" -ge {{ .Values.bngblaster.sessions }} ]; then
+                  echo "PASS: {{ .Values.bngblaster.sessions }} subscriber sessions established"
+                  kill -TERM "$BBL_PID" 2>/dev/null || true
+                  wait "$BBL_PID" || true
+                  trap - EXIT
+                  exit 0
+                fi
+                sleep {{ .Values.bngblaster.pollIntervalSeconds }}
+              done
+              wait "$BBL_PID"
           securityContext:
             capabilities:
               add:
@@ -65,11 +77,6 @@ spec:
                 - NET_RAW
           resources:
             {{- toYaml .Values.bngblaster.resources | nindent 12 }}
-          readinessProbe:
-            exec:
-              command: ["sh", "-c", "test -S /run/bngblaster.sock"]
-            initialDelaySeconds: 3
-            periodSeconds: 5
           volumeMounts:
             - name: bngblaster-config
               mountPath: /config-templates

@@ -16,7 +16,7 @@ osvbng:
     memory: "6Gi"
     hugepages1Gi: "2Gi"
   nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01
+    osvbng.infinitydon.com/dpdk-ha: "true"
   core:
     address: "192.168.88.10/24"
     nextHop: "192.168.88.1"
@@ -40,9 +40,17 @@ osvbng:
     maxSessionsPerSubscriber: 2000
   ha:
     enabled: false
-    nodeId: bng-a
     listenAddress: "0.0.0.0:50051"
-    peerAddress: ""
+    # Addresses are explicit and tied to StatefulSet identity, not calculated.
+    members:
+      - nodeId: bng-a
+        coreAddress: 192.168.88.10/24
+        priority: 100
+        preempt: false
+      - nodeId: bng-b
+        coreAddress: 192.168.88.11/24
+        priority: 90
+        preempt: false
     heartbeat:
       interval: 1s
       timeout: 5s
@@ -53,8 +61,6 @@ osvbng:
     srg:
       name: default
       virtualMac: "02:00:5e:00:01:01"
-      priority: 100
-      preempt: false
       subscriberGroups:
         - default
       interfaces:
@@ -79,6 +85,8 @@ bngblaster:
   sessions: 100
   startRate: 20
   stopRate: 20
+  activeDeadlineSeconds: 300
+  pollIntervalSeconds: 2
   nodeSelector:
     kubernetes.io/hostname: ebpf-bng-node-01
   resources:

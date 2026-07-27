@@ -71,11 +71,11 @@ data:
     {{- if .Values.osvbng.ha.enabled }}
     ha:
       enabled: true
-      node_id: {{ required "osvbng.ha.nodeId is required when HA is enabled" .Values.osvbng.ha.nodeId | quote }}
+      node_id: "__HA_NODE_ID__"
       listen:
         address: {{ .Values.osvbng.ha.listenAddress | quote }}
       peer:
-        address: {{ required "osvbng.ha.peerAddress is required when HA is enabled" .Values.osvbng.ha.peerAddress | quote }}
+        address: "__HA_PEER_ADDRESS__"
       heartbeat:
         interval: {{ .Values.osvbng.ha.heartbeat.interval }}
         timeout: {{ .Values.osvbng.ha.heartbeat.timeout }}
@@ -86,8 +86,8 @@ data:
       srgs:
         {{ .Values.osvbng.ha.srg.name }}:
           virtual_mac: {{ .Values.osvbng.ha.srg.virtualMac | quote }}
-          priority: {{ .Values.osvbng.ha.srg.priority }}
-          preempt: {{ .Values.osvbng.ha.srg.preempt }}
+          priority: __HA_PRIORITY__
+          preempt: __HA_PREEMPT__
           subscriber_groups:
             {{- toYaml .Values.osvbng.ha.srg.subscriberGroups | nindent 12 }}
           interfaces:
@@ -109,7 +109,7 @@ data:
         lcp: true
         address:
           ipv4:
-            - {{ .Values.osvbng.core.address }}
+            - __CORE_ADDRESS__
       loop100:
         description: Subscriber gateway
         enabled: true

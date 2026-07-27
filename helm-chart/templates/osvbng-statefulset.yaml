@@ -3,8 +3,9 @@ kind: StatefulSet
 metadata:
   name: osvbng
 spec:
-  serviceName: osvbng
-  replicas: 1
+  serviceName: osvbng-headless
+  replicas: {{ ternary (len .Values.osvbng.ha.members) 1 .Values.osvbng.ha.enabled }}
+  podManagementPolicy: {{ ternary "Parallel" "OrderedReady" .Values.osvbng.ha.enabled }}
   selector:
     matchLabels:
       app: osvbng
@@ -14,6 +15,7 @@ spec:
         app: osvbng
       annotations:
         checksum/entrypoint: {{ include (print $.Template.BasePath "/osvbng-entrypoint-cm.yaml") . | sha256sum }}
+        checksum/members: {{ include (print $.Template.BasePath "/osvbng-members-cm.yaml") . | sha256sum }}
         checksum/osvbng-config: {{ include (print $.Template.BasePath "/osvbngconf.yaml") . | sha256sum }}
         checksum/dataplane-config: {{ include (print $.Template.BasePath "/dataplane-conf.yaml") . | sha256sum }}
         checksum/frr-config: {{ include (print $.Template.BasePath "/frr-conf.yaml") . | sha256sum }}
@@ -24,6 +26,15 @@ spec:
       {{- end }}
       nodeSelector:
         {{- toYaml .Values.osvbng.nodeSelector | nindent 8 }}
+      {{- if .Values.osvbng.ha.enabled }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: osvbng
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
       terminationGracePeriodSeconds: 30
       containers:
         - name: osvbng
@@ -51,6 +62,18 @@ spec:
                 - SYS_NICE
                 - SYS_RAWIO
           env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: POD_INDEX
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['apps.kubernetes.io/pod-index']
           - name: OSVBNG_CPU_COUNT
             valueFrom:
               resourceFieldRef:
@@ -102,6 +125,11 @@ spec:
             readOnly: true
           - name: config-templates
             mountPath: /config-templates
+          {{- if .Values.osvbng.ha.enabled }}
+          - name: member-config
+            mountPath: /member-config
+            readOnly: true
+          {{- end }}
           - name: hugepages
             mountPath: /dev/hugepages
           - name: config-versions
@@ -130,6 +158,11 @@ spec:
               name: osvbng-dataplane-template
           - configMap:
               name: osvbng-config-template
+      {{- if .Values.osvbng.ha.enabled }}
+      - name: member-config
+        configMap:
+          name: osvbng-members
+      {{- end }}
       - name: config-versions
         emptyDir: {}
       {{- if .Values.osvbng.mountSysKernelDebug }}

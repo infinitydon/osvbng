@@ -1,0 +1,18 @@
+{{- if .Values.osvbng.ha.enabled }}
+{{- if ne (len .Values.osvbng.ha.members) 2 }}
+{{- fail "osvbng.ha.members must contain exactly two members" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-members
+data:
+  {{- range $index, $member := .Values.osvbng.ha.members }}
+  {{ $index }}.env: |
+    OSVBNG_HA_NODE_ID={{ $member.nodeId | quote }}
+    OSVBNG_CORE_ADDRESS={{ $member.coreAddress | quote }}
+    OSVBNG_HA_PRIORITY={{ $member.priority | quote }}
+    OSVBNG_HA_PREEMPT={{ $member.preempt | quote }}
+    OSVBNG_HA_PEER_ORDINAL={{ ternary "1" "0" (eq $index 0) | quote }}
+  {{- end }}
+{{- end }}

@@ -1,0 +1,11 @@
+{{- if .Values.osvbng.ha.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: osvbng
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: osvbng
+{{- end }}

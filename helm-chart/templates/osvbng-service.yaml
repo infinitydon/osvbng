@@ -1,6 +1,20 @@
 apiVersion: v1
 kind: Service
 metadata:
+  name: osvbng-headless
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: osvbng
+  ports:
+    - name: ha
+      port: {{ .Values.osvbng.ports.ha }}
+      targetPort: ha
+---
+apiVersion: v1
+kind: Service
+metadata:
   name: osvbng
 spec:
   type: {{ .Values.osvbng.serviceType }}

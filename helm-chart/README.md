@@ -83,14 +83,17 @@ helm upgrade --install osvbng ./helm-chart \
   --timeout 10m
 ```
 
-BNG Blaster starts automatically and establishes the configured sessions.
+BNG Blaster runs as a post-install validation Job. It succeeds after all
+configured sessions receive DHCP ACKs, then terminates and leaves its logs as
+test evidence.
 
 ## Verification
 
 ```shell
 kubectl get pods -n osvbng
-kubectl exec -n osvbng deployment/bngblaster -- \
-  grep -c "DHCP-ACK received" /tmp/bngblaster.log
+kubectl wait -n osvbng --for=condition=complete \
+  job/bngblaster-validation --timeout=5m
+kubectl logs -n osvbng job/bngblaster-validation
 kubectl logs -n osvbng osvbng-0 | grep "Session bound" | wc -l
 kubectl exec -n osvbng osvbng-0 -- \
   vppctl -s /run/osvbng/cli.sock show interface
@@ -194,41 +197,59 @@ The tested HA allocation is:
 - shared PBA CGNAT pool: `192.168.88.12-15`
 - virtual MAC: `02:00:5e:00:01:01`
 
-Install one release per namespace so each peer has stable cluster DNS:
+Install one release containing a two-replica StatefulSet:
 
 ```shell
-kubectl create namespace osvbng-ha-a
-kubectl create namespace osvbng-ha-b
-helm upgrade --install osvbng ./helm-chart -n osvbng-ha-b \
-  -f helm-chart/examples/ha-b-values.yaml --wait --timeout 10m
-helm upgrade --install osvbng ./helm-chart -n osvbng-ha-a \
-  -f helm-chart/examples/ha-a-values.yaml --wait --timeout 10m
+kubectl create namespace osvbng-ha
+helm upgrade --install osvbng ./helm-chart -n osvbng-ha \
+  -f helm-chart/examples/ha-values.yaml --wait --timeout 10m
 ```
 
-The A example includes the interactive UE; copy `ghcr-pull` into
-`osvbng-ha-a` first when the BNG Blaster image requires authentication.
+The member list explicitly binds addresses to StatefulSet identity:
+
+```yaml
+members:
+  - nodeId: bng-a
+    coreAddress: 192.168.88.10/24
+    priority: 100
+    preempt: false
+  - nodeId: bng-b
+    coreAddress: 192.168.88.11/24
+    priority: 90
+    preempt: false
+```
+
+The addresses do not need to be consecutive. `osvbng-0` always selects member
+zero and `osvbng-1` member one, even if the scheduler places them on different
+eligible workers after a restart. Required hostname anti-affinity prevents
+both replicas from sharing a worker. Stable peer addresses come from the
+`osvbng-headless` Service.
+
+The example includes one independent interactive UE Deployment; it is not
+replicated with the StatefulSet. Copy `ghcr-pull` into `osvbng-ha` first when
+the BNG Blaster image requires authentication.
 
 Capture election, sync, subscriber, and NAT state:
 
 ```shell
-kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
-  curl -sS http://osvbng:8080/api/show/ha/status
-kubectl exec -n osvbng-ha-b osvbng-0 -- \
-  wget -qO- http://127.0.0.1:8080/api/show/ha/status
-kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
-  curl -sS http://osvbng:8080/api/show/ha/sync
-kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
-  curl -sS http://osvbng:8080/api/show/subscriber/sessions
-kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
-  curl -sS http://osvbng:8080/api/show/cgnat/mappings
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
+  curl -sS http://osvbng-0.osvbng-headless:8080/api/show/ha/status
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
+  curl -sS http://osvbng-1.osvbng-headless:8080/api/show/ha/status
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
+  curl -sS http://osvbng-0.osvbng-headless:8080/api/show/ha/sync
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
+  curl -sS http://osvbng-0.osvbng-headless:8080/api/show/subscriber/sessions
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
+  curl -sS http://osvbng-0.osvbng-headless:8080/api/show/cgnat/mappings
 ```
 
 Trigger a graceful switchover on the active node:
 
 ```shell
-kubectl exec -n osvbng-ha-a deployment/ue-test -c ue -- \
+kubectl exec -n osvbng-ha deployment/ue-test -c ue -- \
   curl -sS -X POST -H 'Content-Type: application/json' -d '{}' \
-  http://osvbng:8080/api/exec/ha/switchover
+  http://osvbng-0.osvbng-headless:8080/api/exec/ha/switchover
 ```
 
 The lab NAT and exit flow is:
