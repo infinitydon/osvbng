@@ -1,8 +1,9 @@
 # osvbng Helm chart
 
 This chart deploys osvbng `v0.16.0` on Kubernetes with two directly mounted
-VFIO/DPDK devices and BNG Blaster `0.9.37`. The default profile is sized for
-100 concurrent IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
+VFIO/DPDK devices, native PBA CGNAT, and BNG Blaster `0.9.37`. The default
+profile is sized for 100 concurrent IPoE subscribers using QinQ (S-VLAN 100
+and C-VLANs 100-199).
 
 ## Tested environment
 
@@ -104,7 +105,9 @@ The chart has an interactive traffic-test mode containing:
   TUN feature plus a netshoot sidecar. The sidecar exposes the DHCP-assigned
   subscriber as Linux interface `bbl1`.
 - `ue-test-upstream`, which connects to the BNG core interface and provides
-  routing/NAT toward its Kubernetes network.
+  routing toward its Kubernetes network. It only masquerades the CGNAT
+  outside pool after osvbng has performed subscriber translation; it does not
+  accept untranslated traffic from the subscriber pool.
 
 The two physical interfaces use exclusive `host-device` CNI attachments, so
 traffic-test mode and BNG Blaster cannot run simultaneously. Helm rejects
@@ -128,6 +131,20 @@ ping -I bbl1 -c 3 192.0.2.2
 ping -I bbl1 -c 3 1.1.1.1
 curl --interface bbl1 -I https://example.com
 ```
+
+Confirm that osvbng, rather than the test edge, created the first translation:
+
+```shell
+kubectl exec -n osvbng deployment/ue-test -c ue -- \
+  curl -sS "http://osvbng:8080/api/show/cgnat/sessions?inside-ip=10.255.0.2"
+kubectl exec -n osvbng deployment/ue-test -c ue -- \
+  curl -sS http://osvbng:8080/api/show/cgnat/mappings
+```
+
+The lab uses `198.18.0.0/29` as its CGNAT outside pool. Because that benchmark
+range is not globally routed, `ue-test-upstream` applies a second masquerade
+from that pool to its Kubernetes `eth0` solely for public Internet testing.
+In production, advertise a real public pool upstream and remove the test pod.
 
 The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change
 `trafficTest.outerVlan` and `trafficTest.innerVlan` when those identifiers

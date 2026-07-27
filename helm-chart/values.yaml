@@ -20,6 +20,15 @@ osvbng:
     address: "192.0.2.1/30"
     nextHop: "192.0.2.2"
     installDefaultRoute: true
+  cgnat:
+    enabled: true
+    policy: residential
+    outsideInterface: core
+    insideNetwork: 10.255.0.0/24
+    outsideNetwork: 198.18.0.0/29
+    blockSize: 512
+    maxBlocksPerSubscriber: 2
+    maxSessionsPerSubscriber: 2000
   dpdk:
     enabled: true
     # Direct host VFIO access. Kubernetes does not arbitrate these devices;

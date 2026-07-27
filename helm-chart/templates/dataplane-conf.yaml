@@ -48,6 +48,7 @@ data:
       plugin osvbng_accounting_plugin.so { enable }
       plugin osvbng_pppoe_plugin.so { enable }
       plugin osvbng_ipoe_plugin.so { enable }
+      plugin osvbng_cgnat_plugin.so { {{ ternary "enable" "disable" .Values.osvbng.cgnat.enabled }} }
     }
     logging {
       default-log-level info

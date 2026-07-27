@@ -5,6 +5,9 @@
 {{- if not .Values.multus.enabled }}
 {{- fail "trafficTest.enabled requires multus.enabled" }}
 {{- end }}
+{{- if not .Values.osvbng.cgnat.enabled }}
+{{- fail "trafficTest.enabled requires osvbng.cgnat.enabled so subscriber traffic is translated before reaching the lab edge" }}
+{{- end }}
 ---
 apiVersion: k8s.cni.cncf.io/v1
 kind: NetworkAttachmentDefinition
@@ -165,13 +168,13 @@ spec:
             - |
               ip link set {{ .Values.trafficTest.coreInterface }} up
               ip address add {{ .Values.trafficTest.coreAddress }} dev {{ .Values.trafficTest.coreInterface }}
-              ip route add {{ .Values.trafficTest.subscriberNetwork }} \
+              ip route add {{ .Values.osvbng.cgnat.outsideNetwork }} \
                 via {{ .Values.trafficTest.bngCoreAddress }} dev {{ .Values.trafficTest.coreInterface }}
               sysctl -w net.ipv4.ip_forward=1
               iptables -t nat -A POSTROUTING \
-                -s {{ .Values.trafficTest.subscriberNetwork }} -o eth0 -j MASQUERADE
-              iptables -A FORWARD -s {{ .Values.trafficTest.subscriberNetwork }} -j ACCEPT
-              iptables -A FORWARD -d {{ .Values.trafficTest.subscriberNetwork }} \
+                -s {{ .Values.osvbng.cgnat.outsideNetwork }} -o eth0 -j MASQUERADE
+              iptables -A FORWARD -s {{ .Values.osvbng.cgnat.outsideNetwork }} -j ACCEPT
+              iptables -A FORWARD -d {{ .Values.osvbng.cgnat.outsideNetwork }} \
                 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
               exec sleep infinity
           securityContext:
