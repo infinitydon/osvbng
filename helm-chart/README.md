@@ -104,13 +104,12 @@ The chart has an interactive traffic-test mode containing:
 - `ue-test`, which runs a single BNG Blaster session with its per-session
   TUN feature plus a netshoot sidecar. The sidecar exposes the DHCP-assigned
   subscriber as Linux interface `bbl1`.
-- `ue-test-upstream`, which connects to the BNG core interface and provides
-  routing toward its Kubernetes network. It only masquerades the CGNAT
-  outside pool after osvbng has performed subscriber translation; it does not
-  accept untranslated traffic from the subscriber pool.
+- Direct core egress from osvbng at `192.168.88.10/24` to gateway
+  `192.168.88.1`. Subscriber traffic does not traverse Calico or a Kubernetes
+  forwarding pod.
 
-The two physical interfaces use exclusive `host-device` CNI attachments, so
-traffic-test mode and BNG Blaster cannot run simultaneously. Helm rejects
+The access test interface is exclusive, so traffic-test mode and the
+100-session BNG Blaster deployment cannot run simultaneously. Helm rejects
 that invalid combination. Switch from the scale test to interactive mode:
 
 ```shell
@@ -127,7 +126,6 @@ Run real subscriber traffic:
 kubectl exec -it -n osvbng deployment/ue-test -c ue -- sh
 ip -4 address show bbl1
 ping -I bbl1 -c 3 10.255.0.1
-ping -I bbl1 -c 3 192.0.2.2
 ping -I bbl1 -c 3 1.1.1.1
 curl --interface bbl1 -I https://example.com
 ```
@@ -141,49 +139,35 @@ kubectl exec -n osvbng deployment/ue-test -c ue -- \
   curl -sS http://osvbng:8080/api/show/cgnat/mappings
 ```
 
-The lab uses `198.18.0.0/29` as its CGNAT outside pool. Because that benchmark
-range is not globally routed, `ue-test-upstream` applies a second masquerade
-from that pool to its Kubernetes `eth0` solely for public Internet testing.
-In production, advertise a real public pool upstream and remove the test pod.
+The tested lab reserves `192.168.88.10` for the BNG core and
+`192.168.88.11-15` for CGNAT. VPP proxy ARP makes the five translated
+addresses reachable from the directly connected gateway without adding host
+routes there. For production, prefer a routed public pool and set
+`osvbng.cgnat.proxyArp: false`.
 
 The tested lab egress path is:
 
 ```text
 UE 10.255.0.2
-  -> osvbng PBA CGNAT 198.18.0.0:1024-1535
-  -> core link 192.0.2.1/30
-  -> ue-test-upstream net1 192.0.2.2/30
-  -> lab-only MASQUERADE to pod eth0 10.1.21.9
-  -> Calico veth on ebpf-bng-node-01
-  -> worker eth0 192.168.88.165
-  -> worker default gateway 192.168.88.1
+  -> osvbng PBA CGNAT 192.168.88.11:1024-1535
+  -> DPDK core 192.168.88.10/24
+  -> gateway 192.168.88.1
   -> site Internet edge
 ```
 
-Inspect the BNG translation, lab-edge rule, and worker route:
+Inspect the core, gateway, and BNG translation:
 
 ```shell
+kubectl exec -n osvbng osvbng-0 -- \
+  vppctl -s /run/osvbng/cli.sock show ip neighbors
+kubectl exec -n osvbng osvbng-0 -- \
+  vppctl -s /run/osvbng/cli.sock ping 192.168.88.1 source core repeat 3
 kubectl exec -n osvbng deployment/ue-test -c ue -- \
   curl -sS http://osvbng:8080/api/show/cgnat/pools
 kubectl exec -n osvbng deployment/ue-test -c ue -- \
   curl -sS "http://osvbng:8080/api/show/cgnat/sessions?inside-ip=10.255.0.2"
-kubectl exec -n osvbng deployment/ue-test-upstream -- ip route
-kubectl exec -n osvbng deployment/ue-test-upstream -- \
-  iptables -t nat -L POSTROUTING -n -v
-kubectl -n kube-system exec \
-  "$(kubectl -n kube-system get pod -l k8s-app=calico-node \
-    --field-selector spec.nodeName=ebpf-bng-node-01 \
-    -o jsonpath='{.items[0].metadata.name}')" -- ip -4 route
-```
-
-Capture translated traffic on the core link while generating traffic from
-`bbl1`:
-
-```shell
-kubectl exec -it -n osvbng deployment/ue-test-upstream -- \
-  tcpdump -ni net1 'net 198.18.0.0/29'
 kubectl exec -n osvbng deployment/ue-test -c ue -- \
-  curl --interface bbl1 -I https://example.com
+  curl -sS http://osvbng:8080/api/show/cgnat/mappings
 ```
 
 The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change

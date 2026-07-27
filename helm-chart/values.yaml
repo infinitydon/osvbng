@@ -17,15 +17,23 @@ osvbng:
   nodeSelector:
     kubernetes.io/hostname: ebpf-bng-node-01
   core:
-    address: "192.0.2.1/30"
-    nextHop: "192.0.2.2"
+    address: "192.168.88.10/24"
+    nextHop: "192.168.88.1"
     installDefaultRoute: true
   cgnat:
     enabled: true
     policy: residential
     outsideInterface: core
+    # Answer ARP for same-subnet CGNAT addresses on the outside interface.
+    # Disable this when the upstream router has explicit routes to the pool.
+    proxyArp: true
     insideNetwork: 10.255.0.0/24
-    outsideNetwork: 198.18.0.0/29
+    outsideAddresses:
+      - 192.168.88.11
+      - 192.168.88.12
+      - 192.168.88.13
+      - 192.168.88.14
+      - 192.168.88.15
     blockSize: 512
     maxBlocksPerSubscriber: 2
     maxSessionsPerSubscriber: 2000
@@ -75,9 +83,6 @@ trafficTest:
   outerVlan: 100
   outerVlanProtocol: 802.1Q
   innerVlan: 100
-  coreInterface: net1
-  coreAddress: 192.0.2.2/30
-  bngCoreAddress: 192.0.2.1
   subscriberNetwork: 10.255.0.0/24
   nodeSelector:
     kubernetes.io/hostname: ebpf-bng-node-01
@@ -98,4 +103,3 @@ multus:
   trafficTest:
     devices:
       accessHostDevice: "enp8s21"
-      coreHostDevice: "enp8s22"

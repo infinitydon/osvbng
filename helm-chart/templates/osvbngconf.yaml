@@ -44,7 +44,7 @@ data:
           inside-prefixes:
             - prefix: {{ .Values.osvbng.cgnat.insideNetwork }}
           outside-addresses:
-            - {{ .Values.osvbng.cgnat.outsideNetwork }}
+            {{- toYaml .Values.osvbng.cgnat.outsideAddresses | nindent 12 }}
           block-size: {{ .Values.osvbng.cgnat.blockSize }}
           max-blocks-per-subscriber: {{ .Values.osvbng.cgnat.maxBlocksPerSubscriber }}
           max-sessions-per-subscriber: {{ .Values.osvbng.cgnat.maxSessionsPerSubscriber }}

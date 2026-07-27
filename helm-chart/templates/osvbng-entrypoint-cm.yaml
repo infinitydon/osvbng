@@ -215,6 +215,15 @@ data:
         vppctl -s /run/osvbng/cli.sock ip route add 0.0.0.0/0 \
             via "$OSVBNG_CORE_NEXT_HOP" core
     fi
+    {{- if and .Values.osvbng.cgnat.enabled .Values.osvbng.cgnat.proxyArp }}
+    # Make same-subnet CGNAT addresses reachable without upstream host routes.
+    {{- range .Values.osvbng.cgnat.outsideAddresses }}
+    vppctl -s /run/osvbng/cli.sock set arp proxy table-id 0 \
+        start {{ . }} end {{ . }}
+    {{- end }}
+    vppctl -s /run/osvbng/cli.sock set interface proxy-arp \
+        {{ .Values.osvbng.cgnat.outsideInterface }} enable
+    {{- end }}
     
     echo "Setting dataplane API socket permissions..."
     chmod 660 /run/osvbng/dataplane_api.sock 2>/dev/null || true

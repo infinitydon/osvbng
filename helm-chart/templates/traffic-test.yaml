@@ -21,18 +21,6 @@ spec:
       "device": {{ .Values.multus.trafficTest.devices.accessHostDevice | quote }}
     }
 ---
-apiVersion: k8s.cni.cncf.io/v1
-kind: NetworkAttachmentDefinition
-metadata:
-  name: ue-test-core
-spec:
-  config: |
-    {
-      "cniVersion": "0.3.1",
-      "type": "host-device",
-      "device": {{ .Values.multus.trafficTest.devices.coreHostDevice | quote }}
-    }
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,6 +39,7 @@ spec:
       annotations:
         k8s.v1.cni.cncf.io/networks: ue-test-access
         checksum/ue-vlan-config: {{ printf "%v:%v:%v" .Values.trafficTest.outerVlanProtocol .Values.trafficTest.outerVlan .Values.trafficTest.innerVlan | sha256sum }}
+        checksum/osvbng-subscriber-config: {{ include (print $.Template.BasePath "/osvbngconf.yaml") . | sha256sum }}
     spec:
       {{- with .Values.trafficTest.imagePullSecrets }}
       imagePullSecrets:
@@ -138,57 +127,6 @@ spec:
             type: CharDevice
         - name: runtime
           emptyDir: {}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: ue-test-upstream
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app: ue-test-upstream
-  template:
-    metadata:
-      labels:
-        app: ue-test-upstream
-      annotations:
-        k8s.v1.cni.cncf.io/networks: ue-test-core
-    spec:
-      nodeSelector:
-        {{- toYaml .Values.trafficTest.nodeSelector | nindent 8 }}
-      containers:
-        - name: gateway
-          image: {{ .Values.trafficTest.image | quote }}
-          imagePullPolicy: {{ .Values.trafficTest.pullPolicy }}
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
-              ip link set {{ .Values.trafficTest.coreInterface }} up
-              ip address add {{ .Values.trafficTest.coreAddress }} dev {{ .Values.trafficTest.coreInterface }}
-              ip route add {{ .Values.osvbng.cgnat.outsideNetwork }} \
-                via {{ .Values.trafficTest.bngCoreAddress }} dev {{ .Values.trafficTest.coreInterface }}
-              sysctl -w net.ipv4.ip_forward=1
-              iptables -t nat -A POSTROUTING \
-                -s {{ .Values.osvbng.cgnat.outsideNetwork }} -o eth0 -j MASQUERADE
-              iptables -A FORWARD -s {{ .Values.osvbng.cgnat.outsideNetwork }} -j ACCEPT
-              iptables -A FORWARD -d {{ .Values.osvbng.cgnat.outsideNetwork }} \
-                -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-              exec sleep infinity
-          securityContext:
-            privileged: true
-          resources:
-            {{- toYaml .Values.trafficTest.resources | nindent 12 }}
-          readinessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - ping -c 1 -W 1 {{ .Values.trafficTest.bngCoreAddress }}
-            initialDelaySeconds: 2
-            periodSeconds: 5
 ---
 apiVersion: v1
 kind: ConfigMap
