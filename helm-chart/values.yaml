@@ -1,8 +1,8 @@
 osvbng:
-  image: "ghcr.io/infinitydon/osvbng:v0.0.3"
-  pullPolicy: Always #IfNotPresent
-  accessInterface: "net1"
-  coreInterface: "net2"
+  # v0.2.0 plus upstream commit 3cea1c7, which adds the omitted VPP DPDK package.
+  image: "ghcr.io/infinitydon/osvbng:v0.2.0-dpdk.2@sha256:dc467d38c98397568794919ae0a70b4ea83175c36c32511d41e910e88bdfc79c"
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
   privileged: true
   serviceType: ClusterIP
   ports:
@@ -10,26 +10,51 @@ osvbng:
     prometheus: 9090
     http: 8080
   mountSysKernelDebug: true
-  mountHugepages: true
   shmSize: "2Gi"
   resources:
-    cpu: 4
+    cpu: "6"
     memory: "6Gi"
+    hugepages1Gi: "2Gi"
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  dpdk:
+    enabled: true
+    driver: linux-net.dra.infinitydon.com
+    deviceClassName: linux-net-dpdk
+    count: 2
+    # Dedicated VirtIO VFIO devices on the VLAN-capable worker.
+    pciAddresses:
+      - "0000:09:03.0"
+      - "0000:09:04.0"
+    accessPci: "0000:09:03.0"
+    corePci: "0000:09:04.0"
+    rxQueues: 2
+    txQueues: 2
+    socketMemory: "1024"
 
 bngblaster:
   enabled: true
-  image: "ghcr.io/infinitydon/bng-blaster:v0.9.30"
+  image: "ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2"
   pullPolicy: IfNotPresent
+  imagePullSecrets: []
   accessInterface: "net1"
   coreInterface: "net2"
+  sessions: 100
+  startRate: 20
+  stopRate: 20
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  resources:
+    requests:
+      cpu: "1"
+      memory: "512Mi"
+    limits:
+      cpu: "2"
+      memory: "1Gi"
 
 multus:
   enabled: true
-  osvbng:
-    devices:
-      accessHostDevice: "ens21"
-      coreHostDevice: "ens22"
   bngblaster:
     devices:
-      accessHostDevice: "ens19"
-      coreHostDevice: "ens20"
+      accessHostDevice: "enp8s21"
+      coreHostDevice: "enp8s22"

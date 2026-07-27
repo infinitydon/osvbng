@@ -1,0 +1,29 @@
+{{- if .Values.osvbng.dpdk.enabled }}
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: {{ .Release.Name }}-osvbng-dpdk
+  labels:
+    app.kubernetes.io/name: osvbng
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  spec:
+    devices:
+      requests:
+        - name: dpdk
+          exactly:
+            deviceClassName: {{ .Values.osvbng.dpdk.deviceClassName }}
+            allocationMode: ExactCount
+            count: {{ .Values.osvbng.dpdk.count }}
+            selectors:
+              - cel:
+                  expression: >-
+                    device.attributes['{{ .Values.osvbng.dpdk.driver }}'].pciAddress == '{{ .Values.osvbng.dpdk.accessPci }}' ||
+                    device.attributes['{{ .Values.osvbng.dpdk.driver }}'].pciAddress == '{{ .Values.osvbng.dpdk.corePci }}'
+      config:
+        - requests: ["dpdk"]
+          opaque:
+            driver: {{ .Values.osvbng.dpdk.driver }}
+            parameters:
+              type: dpdk
+{{- end }}

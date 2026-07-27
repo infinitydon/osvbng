@@ -12,25 +12,37 @@ spec:
     metadata:
       labels:
         app: osvbng
-      {{- if .Values.multus.enabled }}
-      annotations:
-        k8s.v1.cni.cncf.io/networks: osvbng-access, osvbng-core
-      {{- end }}
     spec:
+      {{- with .Values.osvbng.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector:
+        {{- toYaml .Values.osvbng.nodeSelector | nindent 8 }}
+      {{- if .Values.osvbng.dpdk.enabled }}
+      resourceClaims:
+        - name: dpdk
+          resourceClaimTemplateName: {{ .Release.Name }}-osvbng-dpdk
+      {{- end }}
+      terminationGracePeriodSeconds: 30
       containers:
         - name: osvbng
           image: {{ .Values.osvbng.image | quote }}
           imagePullPolicy: {{ .Values.osvbng.pullPolicy }}
           command: ["/scripts/docker-entrypoint.sh"]
           resources:
+            {{- if .Values.osvbng.dpdk.enabled }}
+            claims:
+              - name: dpdk
+            {{- end }}
             requests:
               memory: {{ .Values.osvbng.resources.memory }}
               cpu: {{ .Values.osvbng.resources.cpu }}
-              hugepages-2Mi: "512Mi"
+              hugepages-1Gi: {{ .Values.osvbng.resources.hugepages1Gi }}
             limits:
               memory: {{ .Values.osvbng.resources.memory }}
               cpu: {{ .Values.osvbng.resources.cpu }}
-              hugepages-2Mi: "512Mi"
+              hugepages-1Gi: {{ .Values.osvbng.resources.hugepages1Gi }}
           securityContext:
             privileged: {{ .Values.osvbng.privileged }}
             capabilities:
@@ -41,8 +53,16 @@ spec:
                 - SYS_NICE
                 - SYS_RAWIO
           env:
-          - name: OSVBNG_ACCESS_INTERFACE
-            value: {{ .Values.osvbng.accessInterface | quote }}
+          - name: OSVBNG_ACCESS_PCI
+            value: {{ .Values.osvbng.dpdk.accessPci | quote }}
+          - name: OSVBNG_CORE_PCI
+            value: {{ .Values.osvbng.dpdk.corePci | quote }}
+          - name: OSVBNG_DPDK_RX_QUEUES
+            value: {{ .Values.osvbng.dpdk.rxQueues | quote }}
+          - name: OSVBNG_DPDK_TX_QUEUES
+            value: {{ .Values.osvbng.dpdk.txQueues | quote }}
+          - name: OSVBNG_DPDK_SOCKET_MEMORY
+            value: {{ .Values.osvbng.dpdk.socketMemory | quote }}
           ports:
           - name: grpc
             containerPort: {{ .Values.osvbng.ports.grpc }}
@@ -50,6 +70,21 @@ spec:
             containerPort: {{ .Values.osvbng.ports.prometheus }}
           - name: http
             containerPort: {{ .Values.osvbng.ports.http }}
+          startupProbe:
+            exec:
+              command: ["vppctl", "-s", "/run/osvbng/cli.sock", "show", "version"]
+            failureThreshold: 30
+            periodSeconds: 5
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["vppctl", "-s", "/run/osvbng/cli.sock", "show", "version"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
           volumeMounts:
           - name: entrypoint-script
             mountPath: /scripts
@@ -70,6 +105,8 @@ spec:
           {{- end }}
           - name: dshm
             mountPath: /dev/shm
+          - name: tun
+            mountPath: /dev/net/tun
       volumes:
       - name: entrypoint-script
         configMap:
@@ -100,3 +137,7 @@ spec:
         emptyDir:
           medium: Memory
           sizeLimit: {{ .Values.osvbng.shmSize }}
+      - name: tun
+        hostPath:
+          path: /dev/net/tun
+          type: CharDevice

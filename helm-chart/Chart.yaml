@@ -1,5 +1,7 @@
 apiVersion: v2
 name: osvbng
-version: 0.1.0
+description: Kubernetes deployment of osvbng with DRA-managed VFIO/DPDK interfaces
+version: 0.2.0
 type: application
-appVersion: v0.0.3
+appVersion: v0.2.0
+kubeVersion: ">=1.32.0-0"

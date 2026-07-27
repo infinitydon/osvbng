@@ -7,10 +7,6 @@ data:
     #!/bin/bash
     set -e
     
-    if [ -z "$OSVBNG_ACCESS_INTERFACE" ]; then
-        OSVBNG_ACCESS_INTERFACE="eth1"
-    fi
-    
     # Get actual CPU cores allocated to this pod/container
     CPUS_ALLOWED=$(grep Cpus_allowed_list /proc/self/status | awk '{print $2}')
     echo "CPUs allowed by cgroup: $CPUS_ALLOWED"
@@ -113,10 +109,9 @@ data:
     # Process osvbng.yaml template
     echo "Generating osvbng.yaml from template..."
     if [ -f /config-templates/osvbng.yaml.template ]; then
-        sed "s/__OSVBNG_ACCESS_INTERFACE__/${OSVBNG_ACCESS_INTERFACE}/g" \
-            /config-templates/osvbng.yaml.template > /etc/osvbng/osvbng.yaml
+        cp /config-templates/osvbng.yaml.template /etc/osvbng/osvbng.yaml
         
-        echo "Generated osvbng.yaml with interface: $OSVBNG_ACCESS_INTERFACE"
+        echo "Generated osvbng.yaml"
     else
         echo "ERROR: osvbng.yaml.template not found!"
         exit 1
@@ -128,6 +123,11 @@ data:
         # Replace CPU placeholders
         sed -e "s/__DP_MAIN_CORE__/${OSVBNG_DP_MAIN_CORE}/g" \
             -e "s/__DP_WORKER_CORES__/${OSVBNG_DP_WORKER_CORES}/g" \
+            -e "s/__ACCESS_PCI__/${OSVBNG_ACCESS_PCI}/g" \
+            -e "s/__CORE_PCI__/${OSVBNG_CORE_PCI}/g" \
+            -e "s/__DPDK_RX_QUEUES__/${OSVBNG_DPDK_RX_QUEUES}/g" \
+            -e "s/__DPDK_TX_QUEUES__/${OSVBNG_DPDK_TX_QUEUES}/g" \
+            -e "s/__DPDK_SOCKET_MEMORY__/${OSVBNG_DPDK_SOCKET_MEMORY}/g" \
             /config-templates/dataplane.conf.template > /etc/osvbng/dataplane.conf.pre
         
         # Handle empty worker cores (single core scenario)
@@ -146,8 +146,9 @@ data:
         exit 1
     fi
     
-    echo "Using access interface: $OSVBNG_ACCESS_INTERFACE"
-    ip link show $OSVBNG_ACCESS_INTERFACE || echo "WARNING: Interface $OSVBNG_ACCESS_INTERFACE not found yet"
+    echo "Using VFIO devices: access=$OSVBNG_ACCESS_PCI core=$OSVBNG_CORE_PCI"
+    test -e "/sys/bus/pci/devices/$OSVBNG_ACCESS_PCI" || { echo "Access PCI device missing"; exit 1; }
+    test -e "/sys/bus/pci/devices/$OSVBNG_CORE_PCI" || { echo "Core PCI device missing"; exit 1; }
     
     echo "Creating runtime directories..."
     mkdir -p /run/osvbng

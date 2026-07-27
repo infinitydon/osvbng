@@ -33,11 +33,11 @@ data:
     buffers {
       buffers-per-numa 65536
       default data-size 2048
-      page-size 4k
+      page-size default-hugepage
     }
     plugins {
       plugin default { enable }
-      plugin dpdk_plugin.so { disable }
+      plugin dpdk_plugin.so { enable }
       plugin linux_cp_plugin.so { enable }
       plugin linux_nl_plugin.so { enable }
       plugin arp_plugin.so { disable }
@@ -46,6 +46,8 @@ data:
       plugin osvbng_punt_plugin.so { enable }
       plugin fib_control_plugin.so { enable }
       plugin osvbng_accounting_plugin.so { enable }
+      plugin osvbng_pppoe_plugin.so { enable }
+      plugin osvbng_ipoe_plugin.so { enable }
     }
     logging {
       default-log-level info
@@ -60,4 +62,18 @@ data:
     statseg {
       default
       per-node-counters on
+    }
+    dpdk {
+      uio-driver vfio-pci
+      socket-mem __DPDK_SOCKET_MEMORY__
+      dev __ACCESS_PCI__ {
+        name access
+        num-rx-queues __DPDK_RX_QUEUES__
+        num-tx-queues __DPDK_TX_QUEUES__
+      }
+      dev __CORE_PCI__ {
+        name core
+        num-rx-queues __DPDK_RX_QUEUES__
+        num-tx-queues __DPDK_TX_QUEUES__
+      }
     }

@@ -15,15 +15,15 @@ data:
             "outer-vlan-min": 100,
             "outer-vlan-max": 100,
             "inner-vlan-min": 100,
-            "inner-vlan-max": 109
+            "inner-vlan-max": {{ add 99 .Values.bngblaster.sessions }}
           }
         ]
       },
       "sessions": {
-        "count": 10,
-        "max-outstanding": 10,
-        "start-rate": 10,
-        "stop-rate": 10,
+        "count": {{ .Values.bngblaster.sessions }},
+        "max-outstanding": {{ .Values.bngblaster.sessions }},
+        "start-rate": {{ .Values.bngblaster.startRate }},
+        "stop-rate": {{ .Values.bngblaster.stopRate }},
         "autostart": true
       },
       "dhcp": {
@@ -54,11 +54,11 @@ data:
         ]
       },
       "sessions": {
-        "count": 1,
+        "count": {{ .Values.bngblaster.sessions }},
         "autostart": true,
-        "start-rate": 100,
-        "stop-rate": 200,
-        "max-outstanding": 500
+        "start-rate": {{ .Values.bngblaster.startRate }},
+        "stop-rate": {{ .Values.bngblaster.stopRate }},
+        "max-outstanding": {{ .Values.bngblaster.sessions }}
       },
       "dhcp": {
         "enable": true
@@ -77,4 +77,4 @@ data:
         "ipv4-pps": 100
       }
     }  
-{{- end }}                      
+{{- end }}

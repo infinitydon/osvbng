@@ -1,368 +1,100 @@
-# OSVBNG Helm Chart Deployment Guide
+# osvbng Helm chart
 
-## Overview
+This chart deploys osvbng `v0.2.0` on Kubernetes with two DRA-managed
+VFIO/DPDK devices and BNG Blaster `0.9.37`. The default profile is sized for
+100 concurrent IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
 
-Deploy a complete virtual BNG (Broadband Network Gateway) solution on Kubernetes with OSVBNG and BNG Blaster for IPoE/PPPoE subscriber testing.
+## Tested environment
+
+- Kubernetes 1.36.2
+- `linux-net.dra.infinitydon.com` DRA driver
+- worker `ebpf-bng-node-01`
+- access PCI device `0000:09:03.0`
+- core PCI device `0000:09:04.0`
+- 6 exclusive CPUs, 6 GiB memory, and 2 x 1 GiB hugepages
+- BNG Blaster host devices `enp8s21` and `enp8s22`
+
+The PCI devices are VirtIO NICs bound to `vfio-pci` in no-IOMMU mode. For a
+production deployment, use a real IOMMU rather than no-IOMMU mode.
 
 ## Prerequisites
 
-### Required Components
-- Kubernetes cluster (1.31+)
-- Multus CNI installed
-- SR-IOV or host-device capable network interfaces
-- Hugepages support enabled on worker nodes
+The cluster must provide:
 
-### Host Network Interfaces (Adjust to fit your network layout)
-Configure the following physical interfaces on your K8s worker nodes:
+1. Kubernetes DRA (`resource.k8s.io/v1`) and the Linux network DRA driver.
+2. A `linux-net-dpdk` DeviceClass exposing both configured PCI devices.
+3. VFIO and IOMMU support on the target worker.
+4. At least 2 GiB of allocatable 1 GiB hugepages.
+5. Multus and the `host-device` CNI for BNG Blaster.
+6. A pull secret when either configured registry package is private.
 
-**OSVBNG Pod:**
-- `ens21` - Access interface (subscriber-facing)
-- `ens22` - Core/uplink interface
+Create a GHCR pull secret when required:
 
-**BNG Blaster Pod:**
-- `ens19` - Access interface (subscriber simulation)
-- `ens20` - Core interface
-
-### Node Configuration
-
-Enable hugepages on worker nodes:
-```bash
-# Configure 512 x 2MB hugepages (1G total)
-echo 512 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
-
-# Make persistent (add to /etc/sysctl.conf)
-vm.nr_hugepages = 512
+```shell
+kubectl create namespace osvbng
+kubectl create secret docker-registry ghcr-pull \
+  --namespace osvbng \
+  --docker-server ghcr.io \
+  --docker-username USER \
+  --docker-password TOKEN
 ```
 
-Enable static CPU manager policy to enforce CPU pinning (and guranteed QoS at the POD level) at the kubelet level, example way of doing this in mikrok8s:
-
-```
-sudo cat /var/snap/microk8s/current/args/kubelet
---resolv-conf=/run/systemd/resolve/resolv.conf
---kubeconfig=${SNAP_DATA}/credentials/kubelet.config
---cert-dir=${SNAP_DATA}/certs
---client-ca-file=${SNAP_DATA}/certs/ca.crt
---anonymous-auth=false
---root-dir=${SNAP_COMMON}/var/lib/kubelet
---fail-swap-on=false
---eviction-hard="memory.available<100Mi,nodefs.available<1Gi,imagefs.available<1Gi"
---container-runtime-endpoint=${SNAP_COMMON}/run/containerd.sock
---containerd=${SNAP_COMMON}/run/containerd.sock
---node-labels="microk8s.io/cluster=true,node.kubernetes.io/microk8s-controlplane=microk8s-controlplane"
---authentication-token-webhook=true
---read-only-port=0
---tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_256_GCM_SHA384,TLS_RSA_WITH_AES_128_GCM_SHA256
---serialize-image-pulls=false
---cluster-domain=cluster.local
---cluster-dns=10.152.183.10
---cpu-manager-policy=static
---reserved-cpus=0-5
-```
-
-The last two lines are of particular interest:
-
-**--cpu-manager-policy=static**
-**--reserved-cpus=0-5**
-
-## Helm Values Configuration
-
-The chart supports customization through `values.yaml`:
+Create a private values file:
 
 ```yaml
 osvbng:
-  image: "ghcr.io/infinitydon/osvbng:v0.0.3"
-  pullPolicy: IfNotPresent #Always
-  accessInterface: "net1"
-  coreInterface: "net2"
-  privileged: true
-  serviceType: ClusterIP
-  ports:
-    grpc: 50050
-    prometheus: 9090
-    http: 8080
-  mountSysKernelDebug: true
-  mountHugepages: true
-  shmSize: "2Gi"
-  resources:
-    cpu: 4
-    memory: "6Gi"
-
+  imagePullSecrets:
+    - name: ghcr-pull
 bngblaster:
-  enabled: true
-  image: "ghcr.io/infinitydon/bng-blaster:v0.9.30"
-  pullPolicy: IfNotPresent
-  accessInterface: "net1"
-  coreInterface: "net2"
-
-multus:
-  enabled: true
-  osvbng:
-    devices:
-      accessHostDevice: "ens21"
-      coreHostDevice: "ens22"
-  bngblaster:
-    devices:
-      accessHostDevice: "ens19"
-      coreHostDevice: "ens20"
+  imagePullSecrets:
+    - name: ghcr-pull
 ```
 
-## Deployment
+## Install
 
-### Install/Upgrade the Chart
+Review the worker, PCI addresses, host devices, and VLANs in `values.yaml`
+before installation:
 
-```bash
-helm upgrade --install virtual-bng ./osvbng-chart/ \
-  --namespace telco \
-  --create-namespace
+```shell
+helm lint ./helm-chart
+helm upgrade --install osvbng ./helm-chart \
+  --namespace osvbng \
+  --create-namespace \
+  --values private-values.yaml \
+  --wait \
+  --timeout 10m
 ```
 
-### Verify Deployment
+BNG Blaster starts automatically and establishes the configured sessions.
 
-Check pod status:
-```bash
-kubectl -n telco get pods
+## Verification
 
-# Expected output:
-# NAME                         READY   STATUS    RESTARTS   AGE
-# bngblaster-984f4b759-gsqjg   1/1     Running   0          7m17s
-# osvbng-0                     1/1     Running   0          7m17s
+```shell
+kubectl get pods,resourceclaims -n osvbng
+kubectl logs -n osvbng deployment/bngblaster | grep "ALL SESSIONS ESTABLISHED"
+kubectl logs -n osvbng osvbng-0 | grep "Session bound" | wc -l
+kubectl exec -n osvbng osvbng-0 -- \
+  vppctl -s /run/osvbng/cli.sock show interface
 ```
 
-Check OSVBNG logs:
-```bash
-kubectl -n telco logs osvbng-0 | head -20
+The expected default result is 100 DHCP ACKs, 100 bound IPoE sessions, and
+VPP interfaces `access`, `access.100`, and `core` in the up state.
 
-# Expected output shows CPU allocation:
-# CPUs allowed by cgroup: 6-9
-# Total cores allocated to pod: 4
-# Core allocation: Total=4 DP_MAIN=6 DP_WORKERS=7-9 CP=6
-```
+## Images
 
-## Testing & Validation
+- osvbng is based on upstream stable `v0.2.0`. Its stable image omitted
+  `vpp-plugin-dpdk`; the chart image applies upstream commit `3cea1c7`.
+- The small Kubernetes patch in `images/osvbng` prevents osvbng from trying
+  to create an LCP TAP pair for the pod's existing `eth0` management veth.
+- BNG Blaster is built from the official `0.9.37` Ubuntu package using the
+  reproducible Dockerfile in `images/bngblaster`.
+- Runtime images are pinned by digest in `values.yaml`.
 
-### 1. Check OSVBNG VPP Status
+## Interactive subscriber test
 
-```bash
-kubectl -n telco exec -ti osvbng-0 -- vppctl -s /run/osvbng/cli.sock
-
-# Inside VPP CLI:
-osvbng# show int
-osvbng# show int addr
-```
-
-**Expected interfaces:**
-- `host-eth0` - Management interface
-- `host-net1` - Access interface (connected to BNG Blaster)
-- `host-net2` - Core interface
-- `loop100` - Subscriber gateway (10.255.0.1/32)
-- `memif1/0` - Internal dataplane interface
-
-### 2. Run BNG Blaster Test
-
-```bash
-kubectl -n telco exec -ti deploy/bngblaster -- bash
-
-# Inside BNG Blaster container:
-bngblaster -C /config-templates/multiple-multi-qinq.json -c 10 -I -l dhcp -l ip
-```
-
-**Test Parameters:**
-- `-c 10` - Create 10 subscriber sessions
-- `-I` - Interactive mode
-- `-l dhcp` - Log DHCP protocol
-- `-l ip` - Log IP protocol
-
-**Expected Results:**
-```
-Sessions PPPoE: 0 IPoE: 10
-Sessions established: 10/10
-Setup Time: 949 ms
-Setup Rate: 10.54 CPS
-```
-
-### 3. Verify Active Sessions
-
-```bash
-kubectl -n telco exec -ti osvbng-0 -- osvbngcli
-
-# Inside osvbngcli:
-bng> show subscriber sessions
-```
-
-**Expected output:** Active IPoE sessions with:
-- MAC addresses (02:00:00:00:00:XX)
-- IPv4 addresses from pool (10.255.0.0/16)
-- DHCP lease time (3600s)
-- State: `active`
-
-### 4. Check Network Interfaces
-
-```bash
-kubectl -n telco exec -ti osvbng-0 -- ip addr
-
-# Expected interfaces:
-# - eth0: K8s cluster network
-# - net1: Access interface (from Multus)
-# - net2: Core interface (from Multus)
-# - loop100: Subscriber gateway (10.255.0.1/32)
-```
-
-## Architecture
-
-```
-┌─────────────────┐         ┌─────────────────┐
-│  BNG Blaster    │         │     OSVBNG      │
-│                 │         │                 │
-│  ens19 (net1) ◄─┼─────────┼─► ens21 (net1)  │
-│  Subscriber     │  Access │   Access        │
-│  Simulation     │  VLAN   │   Interface     │
-│                 │   100   │                 │
-│  ens20 (net2) ◄─┼─────────┼─► ens22 (net2)  │
-│  Core           │  Core   │   Uplink        │
-└─────────────────┘         └─────────────────┘
-```
-
-## Subscriber Pool Configuration
-
-**Default Address Pool:** `10.255.0.0/16`
-- Gateway: `10.255.0.1`
-- DNS: `8.8.8.8`, `8.8.4.4`
-- DHCP Lease: 3600 seconds
-
-**VLAN Configuration:**
-- S-VLAN: 100
-- C-VLAN: any (or specific per subscriber)
-
-## Monitoring
-
-### Prometheus Metrics
-```bash
-kubectl -n telco port-forward osvbng-0 9090:9090
-curl http://localhost:9090/metrics
-```
-
-### OSVBNG CLI
-```bash
-kubectl -n telco exec -ti osvbng-0 -- osvbngcli
-
-# Available commands:
-bng> show subscriber sessions
-bng> show interfaces
-bng> help
-```
-
-### VPP CLI
-```bash
-kubectl -n telco exec -ti osvbng-0 -- vppctl -s /run/osvbng/cli.sock
-
-# Useful commands:
-osvbng# show int
-osvbng# show int addr
-osvbng# show hardware-interfaces
-osvbng# show errors
-```
-
-## Troubleshooting
-
-### No Subscriber Sessions
-
-1. **Check VPP interfaces:**
-   ```bash
-   kubectl -n telco exec osvbng-0 -- vppctl -s /run/osvbng/cli.sock show int
-   # Ensure host-net1 is UP
-   ```
-
-2. **Verify Multus attachments:**
-   ```bash
-   kubectl -n telco get network-attachment-definitions
-   kubectl -n telco describe pod osvbng-0 | grep -A 5 "Annotations"
-   ```
-
-3. **Check DHCP logs:**
-   ```bash
-   kubectl -n telco logs osvbng-0 | grep dhcp
-   ```
-
-### VPP Not Starting
-
-1. **Check CPU allocation:**
-   ```bash
-   kubectl -n telco logs osvbng-0 | grep "Core allocation"
-   ```
-
-2. **Verify hugepages:**
-   ```bash
-   kubectl -n telco describe pod osvbng-0 | grep -i hugepage
-   ```
-
-3. **Check dataplane logs:**
-   ```bash
-   kubectl -n telco exec osvbng-0 -- tail -50 /var/log/osvbng/dataplane.log
-   ```
-
-### Interface Not Found
-
-```bash
-# Verify host interfaces exist
-ssh <worker-node>
-ip link show ens21
-ip link show ens22
-
-# Check Multus NAD configuration
-kubectl -n telco get network-attachment-definitions -o yaml
-```
-
-## Cleanup
-
-```bash
-# Uninstall the chart
-helm -n telco uninstall virtual-bng
-
-# Delete namespace
-kubectl delete namespace telco
-```
-
-## Advanced Configuration
-
-### Custom Subscriber Pool
-
-Edit `osvbng-config-template` ConfigMap:
-```yaml
-address-pools:
-  - name: subscriber-pool
-    network: 192.168.0.0/16  # Custom pool
-    gateway: 192.168.0.1
-```
-
-### BGP Configuration
-
-Enable BGP in `osvbng-config-template`:
-```yaml
-protocols:
-  bgp:
-    asn: 65000
-    router-id: 10.255.0.1
-    neighbors:
-      - ip: 10.0.0.1
-        asn: 65001
-```
-
-### Multiple Subscriber Groups
-
-Add additional groups in `osvbng.yaml.template`:
-```yaml
-subscriber-groups:
-  groups:
-    premium:
-      vlans:
-        - svlan: "200"
-          cvlan: any
-      address-pools:
-        - name: premium-pool
-          network: 10.10.0.0/16
-```
-
-## References
-
-- **BNG Blaster:** https://github.com/rtbrick/bngblaster
-- **Multus CNI:** https://github.com/k8snetworkplumbingwg/multus-cni
+BNG Blaster is the scale and protocol test tool; it does not create a
+UERANSIM-style Linux TUN interface for each subscriber. Use a separate,
+single-subscriber Linux namespace or container with a DHCP/PPPoE client for
+interactive `ping`, DNS, and `curl` tests. It must attach to an unused access
+port or VLAN path; do not attach it to a host-device interface already owned
+by the BNG Blaster pod.
