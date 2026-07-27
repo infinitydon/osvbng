@@ -1,0 +1,149 @@
+{{- if .Values.radius.enabled }}
+{{- $secret := required "radius.existingSecret is required when RADIUS is enabled" .Values.radius.existingSecret }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-freeradius
+data:
+  clients.conf: |
+    client osvbng {
+      ipaddr = {{ .Values.radius.clientNetwork }}
+      secret = $ENV{RADIUS_SHARED_SECRET}
+      shortname = osvbng-kubernetes
+    }
+  sql: |
+    sql {
+      dialect = "postgresql"
+      driver = "rlm_sql_postgresql"
+      server = "osvbng-radius-postgresql"
+      port = 5432
+      login = {{ .Values.radius.postgresql.username | quote }}
+      password = "$ENV{POSTGRES_PASSWORD}"
+      radius_db = {{ .Values.radius.postgresql.database | quote }}
+
+      acct_table1 = "radacct"
+      acct_table2 = "radacct"
+      postauth_table = "radpostauth"
+      authcheck_table = "radcheck"
+      authreply_table = "radreply"
+      groupcheck_table = "radgroupcheck"
+      groupreply_table = "radgroupreply"
+      usergroup_table = "radusergroup"
+      client_table = "nas"
+      group_attribute = "SQL-Group"
+
+      $INCLUDE ${modconfdir}/sql/main/${dialect}/queries.conf
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-radius-schema
+data:
+  10-radius-schema.sql: |
+    CREATE TABLE radacct (
+      radacctid bigserial PRIMARY KEY,
+      acctsessionid text NOT NULL,
+      acctuniqueid text NOT NULL UNIQUE,
+      username text,
+      realm text,
+      nasipaddress inet NOT NULL,
+      nasportid text,
+      nasporttype text,
+      acctstarttime timestamptz,
+      acctupdatetime timestamptz,
+      acctstoptime timestamptz,
+      acctinterval bigint,
+      acctsessiontime bigint,
+      acctauthentic text,
+      connectinfo_start text,
+      connectinfo_stop text,
+      acctinputoctets bigint,
+      acctoutputoctets bigint,
+      calledstationid text,
+      callingstationid text,
+      acctterminatecause text,
+      servicetype text,
+      framedprotocol text,
+      framedipaddress inet,
+      framedipv6address inet,
+      framedipv6prefix inet,
+      framedinterfaceid text,
+      delegatedipv6prefix inet,
+      class text
+    );
+    CREATE INDEX radacct_active_session_idx
+      ON radacct (acctuniqueid) WHERE acctstoptime IS NULL;
+
+    CREATE TABLE radcheck (
+      id serial PRIMARY KEY,
+      username text NOT NULL,
+      attribute text NOT NULL,
+      op varchar(2) NOT NULL DEFAULT '==',
+      value text NOT NULL
+    );
+    CREATE INDEX radcheck_username ON radcheck (username, attribute);
+
+    CREATE TABLE radreply (
+      id serial PRIMARY KEY,
+      username text NOT NULL,
+      attribute text NOT NULL,
+      op varchar(2) NOT NULL DEFAULT '=',
+      value text NOT NULL
+    );
+    CREATE INDEX radreply_username ON radreply (username, attribute);
+
+    CREATE TABLE radgroupcheck (
+      id serial PRIMARY KEY,
+      groupname text NOT NULL,
+      attribute text NOT NULL,
+      op varchar(2) NOT NULL DEFAULT '==',
+      value text NOT NULL
+    );
+    CREATE TABLE radgroupreply (
+      id serial PRIMARY KEY,
+      groupname text NOT NULL,
+      attribute text NOT NULL,
+      op varchar(2) NOT NULL DEFAULT '=',
+      value text NOT NULL
+    );
+    CREATE TABLE radusergroup (
+      id serial PRIMARY KEY,
+      username text NOT NULL,
+      groupname text NOT NULL,
+      priority integer NOT NULL DEFAULT 1
+    );
+    CREATE INDEX radusergroup_username ON radusergroup (username);
+
+    CREATE TABLE radpostauth (
+      id bigserial PRIMARY KEY,
+      username text NOT NULL,
+      pass text,
+      reply text,
+      authdate timestamptz NOT NULL DEFAULT now(),
+      class text
+    );
+
+    CREATE TABLE nas (
+      id serial PRIMARY KEY,
+      nasname text NOT NULL,
+      shortname text NOT NULL,
+      type text DEFAULT 'other',
+      ports integer,
+      secret text NOT NULL,
+      server text,
+      community text,
+      description text
+    );
+
+    {{- range .Values.radius.bootstrapUsers }}
+    INSERT INTO radcheck (username, attribute, op, value)
+      VALUES ({{ .username | squote }}, 'Cleartext-Password', ':=', {{ .password | squote }});
+    INSERT INTO radreply (username, attribute, op, value)
+      VALUES ({{ .username | squote }}, 'Framed-Pool', ':=', {{ default "subscriber-pool" .framedPool | squote }});
+    INSERT INTO radreply (username, attribute, op, value)
+      VALUES ({{ .username | squote }}, 'Session-Timeout', ':=', {{ default "86400" .sessionTimeout | squote }});
+    INSERT INTO radreply (username, attribute, op, value)
+      VALUES ({{ .username | squote }}, 'Acct-Interim-Interval', ':=', {{ printf "%v" $.Values.radius.interimInterval | squote }});
+    {{- end }}
+{{- end }}

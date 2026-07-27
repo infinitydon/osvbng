@@ -2,8 +2,9 @@
 
 This chart deploys osvbng `v0.16.0` on Kubernetes with two VFIO/DPDK devices
 allocated by the SR-IOV Network Device Plugin, native PBA CGNAT, active/standby
-HA, and BNG Blaster `0.9.37`. The default profile is sized for 100 concurrent
-IPoE subscribers using QinQ (S-VLAN 100 and C-VLANs 100-199).
+HA, BNG Blaster `0.9.37`, and an optional FreeRADIUS/PostgreSQL AAA profile.
+The default profile is sized for 100 concurrent IPoE subscribers using QinQ
+(S-VLAN 100 and C-VLANs 100-199).
 
 ## Tested environment
 
@@ -303,8 +304,62 @@ validating this release.
 
 ## RADIUS
 
-osvbng `v0.16.0` has a native `subscriber.auth.radius` provider supporting
-authentication, accounting, ordered server failover, CoA/Disconnect, VRF
-binding, and attribute mappings. The chart currently defaults to local
-allow-all authentication for repeatable baseline tests. A FreeRADIUS
-component and opt-in RADIUS values can be added without an HTTP bridge.
+The optional `radius` profile deploys FreeRADIUS `3.2.7` and PostgreSQL
+`17.10`. It connects directly to osvbng's native RADIUS provider; no HTTP
+bridge is involved. The default remains simple: `radius.enabled: false`
+renders neither component and osvbng uses its local allow-all provider.
+
+Create one external Secret. Keep both values to single-line RADIUS-safe
+strings:
+
+```shell
+kubectl create secret generic osvbng-radius -n osvbng-ha \
+  --from-literal=shared-secret='REPLACE_WITH_RADIUS_SECRET' \
+  --from-literal=postgres-password='REPLACE_WITH_DATABASE_PASSWORD'
+```
+
+Enable the profile with the supplied example:
+
+```shell
+helm upgrade --install osvbng ./helm-chart -n osvbng-ha \
+  -f helm-chart/examples/ha-values.yaml \
+  -f helm-chart/examples/radius-values.yaml \
+  --wait --timeout 10m
+```
+
+`radius.existingSecret` is required only when the profile is enabled.
+`radius.bootstrapUsers` provides small, declarative lab fixtures. The example
+authorizes UE MAC `02:00:00:00:00:01`, returns `subscriber-pool`,
+`Session-Timeout`, and `Acct-Interim-Interval`, and records authentication and
+accounting in PostgreSQL. Provision `radcheck`, `radreply`, and related tables
+through an OSS/BSS workflow instead of Helm values in a production system.
+
+Check the result:
+
+```shell
+kubectl logs -n osvbng-ha deployment/osvbng-freeradius |
+  grep 'Ready to process requests'
+kubectl exec -n osvbng-ha osvbng-radius-postgresql-0 -- \
+  psql -U radius -d radius -c \
+  'SELECT username,reply,authdate FROM radpostauth ORDER BY id DESC LIMIT 5;'
+kubectl exec -n osvbng-ha osvbng-radius-postgresql-0 -- \
+  psql -U radius -d radius -c \
+  'SELECT username,framedipaddress,acctstarttime,acctupdatetime,acctstoptime
+   FROM radacct ORDER BY radacctid DESC LIMIT 5;'
+```
+
+Disable RADIUS by upgrading without the overlay:
+
+```shell
+helm upgrade osvbng ./helm-chart -n osvbng-ha \
+  -f helm-chart/examples/ha-values.yaml --wait --timeout 10m
+```
+
+Helm removes the FreeRADIUS and PostgreSQL workloads and returns osvbng to
+local authentication. The PostgreSQL PVC is intentionally retained to avoid
+AAA data loss. Delete it explicitly only when the records are no longer
+needed:
+
+```shell
+kubectl delete pvc -n osvbng-ha data-osvbng-radius-postgresql-0
+```

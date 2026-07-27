@@ -1,0 +1,101 @@
+{{- if .Values.radius.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: osvbng-freeradius
+spec:
+  selector:
+    app: osvbng-freeradius
+  ports:
+    - name: auth
+      port: {{ .Values.radius.authPort }}
+      targetPort: auth
+      protocol: UDP
+    - name: accounting
+      port: {{ .Values.radius.accountingPort }}
+      targetPort: accounting
+      protocol: UDP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osvbng-freeradius
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: osvbng-freeradius
+  template:
+    metadata:
+      labels:
+        app: osvbng-freeradius
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/radius-config.yaml") . | sha256sum }}
+    spec:
+      initContainers:
+        - name: wait-for-postgresql
+          image: {{ .Values.radius.postgresql.image | quote }}
+          imagePullPolicy: {{ .Values.radius.postgresql.pullPolicy }}
+          command:
+            - sh
+            - -ec
+            - |
+              until pg_isready \
+                --host=osvbng-radius-postgresql \
+                --port=5432 \
+                --username={{ .Values.radius.postgresql.username | quote }} \
+                --dbname={{ .Values.radius.postgresql.database | quote }}; do
+                sleep 2
+              done
+      containers:
+        - name: freeradius
+          image: {{ .Values.radius.image | quote }}
+          imagePullPolicy: {{ .Values.radius.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              ln -sf ../mods-available/sql /etc/freeradius/mods-enabled/sql
+              sed -i -E \
+                -e 's/^([[:space:]]*)-sql$/\1sql/' \
+                -e 's/^([[:space:]]*)#[[:space:]]*sql$/\1sql/' \
+                /etc/freeradius/sites-enabled/default
+              exec freeradius -f -X
+          env:
+            - name: RADIUS_SHARED_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "radius.existingSecret is required when RADIUS is enabled" .Values.radius.existingSecret }}
+                  key: {{ .Values.radius.sharedSecretKey }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.radius.existingSecret }}
+                  key: {{ .Values.radius.postgresql.passwordKey }}
+          ports:
+            - name: auth
+              containerPort: {{ .Values.radius.authPort }}
+              protocol: UDP
+            - name: accounting
+              containerPort: {{ .Values.radius.accountingPort }}
+              protocol: UDP
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.radius.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/freeradius/clients.conf
+              subPath: clients.conf
+              readOnly: true
+            - name: config
+              mountPath: /etc/freeradius/mods-available/sql
+              subPath: sql
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: osvbng-freeradius
+{{- end }}

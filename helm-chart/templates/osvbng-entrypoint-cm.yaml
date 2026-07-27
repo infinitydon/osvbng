@@ -153,7 +153,18 @@ data:
     # Process osvbng.yaml template
     echo "Generating osvbng.yaml from template..."
     if [ -f /config-templates/osvbng.yaml.template ]; then
+        {{- if .Values.radius.enabled }}
+        # osvbng does not expand environment variables in the RADIUS server
+        # secret. Escape sed metacharacters and inject the Secret only into the
+        # pod-local generated config; it never appears in the ConfigMap.
+        RADIUS_SHARED_SECRET_ESCAPED="$(
+            printf '%s' "$RADIUS_SHARED_SECRET" | sed 's/[&|\\]/\\&/g'
+        )"
+        {{- end }}
         sed -e "s|__CORE_ADDRESS__|${OSVBNG_CORE_ADDRESS}|g" \
+            {{- if .Values.radius.enabled }}
+            -e "s|__RADIUS_SHARED_SECRET__|${RADIUS_SHARED_SECRET_ESCAPED}|g" \
+            {{- end }}
             {{- if .Values.osvbng.ha.enabled }}
             -e "s|__HA_NODE_ID__|${OSVBNG_HA_NODE_ID}|g" \
             -e "s|__HA_PEER_ADDRESS__|${OSVBNG_HA_PEER_ADDRESS}|g" \

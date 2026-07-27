@@ -1,0 +1,90 @@
+{{- if .Values.radius.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: osvbng-radius-postgresql
+spec:
+  selector:
+    app: osvbng-radius-postgresql
+  ports:
+    - name: postgresql
+      port: 5432
+      targetPort: postgresql
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: osvbng-radius-postgresql
+spec:
+  serviceName: osvbng-radius-postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: osvbng-radius-postgresql
+  template:
+    metadata:
+      labels:
+        app: osvbng-radius-postgresql
+    spec:
+      containers:
+        - name: postgresql
+          image: {{ .Values.radius.postgresql.image | quote }}
+          imagePullPolicy: {{ .Values.radius.postgresql.pullPolicy }}
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.radius.postgresql.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.radius.postgresql.username | quote }}
+            - name: POSTGRES_PASSWORD_FILE
+              value: /run/osvbng-secrets/postgres-password
+          ports:
+            - name: postgresql
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.radius.postgresql.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: schema
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+            - name: credentials
+              mountPath: /run/osvbng-secrets
+              readOnly: true
+      volumes:
+        - name: schema
+          configMap:
+            name: osvbng-radius-schema
+        - name: credentials
+          secret:
+            secretName: {{ required "radius.existingSecret is required when RADIUS is enabled" .Values.radius.existingSecret }}
+            items:
+              - key: {{ .Values.radius.postgresql.passwordKey }}
+                path: postgres-password
+        {{- if not .Values.radius.postgresql.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.radius.postgresql.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- with .Values.radius.postgresql.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.radius.postgresql.persistence.size }}
+  {{- end }}
+{{- end }}

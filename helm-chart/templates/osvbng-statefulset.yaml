@@ -98,6 +98,13 @@ spec:
             value: {{ .Values.osvbng.core.nextHop | quote }}
           - name: OSVBNG_INSTALL_DEFAULT_ROUTE
             value: {{ .Values.osvbng.core.installDefaultRoute | quote }}
+          {{- if .Values.radius.enabled }}
+          - name: RADIUS_SHARED_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ required "radius.existingSecret is required when RADIUS is enabled" .Values.radius.existingSecret }}
+                key: {{ .Values.radius.sharedSecretKey }}
+          {{- end }}
           ports:
           - name: grpc
             containerPort: {{ .Values.osvbng.ports.grpc }}

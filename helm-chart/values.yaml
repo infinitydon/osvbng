@@ -129,3 +129,42 @@ multus:
   trafficTest:
     devices:
       accessHostDevice: "enp8s21"
+
+# Optional subscriber AAA profile. When disabled, osvbng uses its local
+# allow-all provider and no FreeRADIUS or PostgreSQL resources are rendered.
+radius:
+  enabled: false
+  existingSecret: ""
+  sharedSecretKey: shared-secret
+  clientNetwork: 10.1.0.0/16
+  image: "freeradius/freeradius-server:3.2.7@sha256:42b05de4405b1e745686b9ed0f70307fd43e998b850b3e6bd936733a8c260595"
+  pullPolicy: IfNotPresent
+  authPort: 1812
+  accountingPort: 1813
+  interimInterval: 60
+  ipoePassword: secret
+  bootstrapUsers: []
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  postgresql:
+    image: "postgres:17.10-bookworm@sha256:4f736ae292687621d4dbe0d499ffd024a36bd2ee7d8ca6f2ccd4c800f047b394"
+    pullPolicy: IfNotPresent
+    passwordKey: postgres-password
+    database: radius
+    username: radius
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: ""
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi

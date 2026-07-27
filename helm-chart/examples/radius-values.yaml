@@ -1,0 +1,8 @@
+radius:
+  enabled: true
+  existingSecret: osvbng-radius
+  bootstrapUsers:
+    - username: "02:00:00:00:00:01"
+      password: secret
+      framedPool: subscriber-pool
+      sessionTimeout: "86400"

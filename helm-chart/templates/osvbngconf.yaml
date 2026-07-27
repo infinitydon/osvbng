@@ -122,11 +122,18 @@ data:
         asn: 65000
         router-id: 10.255.0.1
     aaa:
+      {{- if .Values.radius.enabled }}
+      auth_provider: radius
+      {{- else }}
       auth_provider: local
+      {{- end }}
       nas_identifier: osvbng
       policy:
         - name: default-policy
           format: $mac-address$
+          {{- if .Values.radius.enabled }}
+          password: {{ .Values.radius.ipoePassword | quote }}
+          {{- end }}
           max_concurrent_sessions: 1
     plugins:
       exporter.prometheus:
@@ -136,9 +143,18 @@ data:
         enabled: true
         listeners:
           - address: :8080
+      {{- if .Values.radius.enabled }}
+      subscriber.auth.radius:
+        auth_port: {{ .Values.radius.authPort }}
+        acct_port: {{ .Values.radius.accountingPort }}
+        servers:
+          - host: osvbng-freeradius
+            secret: "__RADIUS_SHARED_SECRET__"
+      {{- else }}
       subscriber.auth.local:
         allow_all: true
         database_path: /var/lib/osvbng/subscribers.db
+      {{- end }}
     dataplane:
       lcp-netns: dataplane
       statseg:
