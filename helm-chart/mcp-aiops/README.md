@@ -76,6 +76,9 @@ The Streamable HTTP endpoint is `http://127.0.0.1:8080/mcp`.
 
 ## Verify
 
+See [MCP-VALIDATION.md](MCP-VALIDATION.md) for the complete Agentgateway and
+MCP tool validation runbook, including representative expected output.
+
 ```shell
 kubectl get mcpserver osvbng-ops -n osvbng-aiops
 kubectl get gateway,httproute,agentgatewaybackend -n osvbng-aiops
