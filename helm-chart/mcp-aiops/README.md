@@ -7,6 +7,10 @@ MCP client
   -> Agentgateway
   -> ToolHive proxy
   -> osvbng MCP server
+
+Agent runtime
+  -> Agentgateway
+  -> Ollama Cloud
   -> osvbng northbound APIs
 ```
 
@@ -55,6 +59,24 @@ kubectl create secret docker-registry ghcr-pull `
   --docker-password TOKEN
 ```
 
+Ollama Cloud uses separate upstream and client credentials:
+
+- `ollama-cloud-api-key` is read only by Agentgateway and attached to requests
+  sent to Ollama Cloud.
+- `osvbng-agent-client-key` authenticates the agent runtime to Agentgateway.
+
+Create the upstream Secret from the Ollama key:
+
+```powershell
+kubectl create secret generic ollama-cloud-api-key `
+  --namespace osvbng-aiops `
+  --from-literal=OLLAMA_CLOUD_API_KEY="$env:OLLAMA_CLOUD_API_KEY"
+```
+
+Create `osvbng-agent-client-key` with a cryptographically random value before
+installing the chart. Its data may contain one or more client entries; the
+agent runtime must present the selected value as a Bearer token.
+
 Install the application chart:
 
 ```powershell
@@ -74,6 +96,15 @@ curl http://<node-ip>:30080/mcp
 
 The Streamable HTTP endpoint is `http://<node-ip>:30080/mcp`. Override
 `gateway.nodePort` if port `30080` is unavailable.
+
+The authenticated Ollama Cloud endpoint is:
+
+```text
+http://<node-ip>:30080/v1/chat/completions
+```
+
+The Ollama credential is not exposed to clients. Agentgateway validates the
+client credential, removes it, and injects the upstream Ollama credential.
 
 ## Verify
 

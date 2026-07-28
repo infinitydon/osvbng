@@ -175,3 +175,76 @@ kubectl exec -n osvbng-aiops osvbng-ops-0 -- `
 ```
 
 The expected JSON is identical to the output in the preceding section.
+
+## 6. Validate Ollama Cloud through Agentgateway
+
+Verify that the backend, route, and strict client-auth policy are accepted:
+
+```powershell
+kubectl get agentgatewaybackend ollama-cloud -n osvbng-aiops
+kubectl get httproute ollama-cloud -n osvbng-aiops
+kubectl get agentgatewaypolicy ollama-cloud-client-auth -n osvbng-aiops
+```
+
+Expected status:
+
+```text
+agentgatewaybackend/ollama-cloud                    ACCEPTED=True
+agentgatewaypolicy/ollama-cloud-client-auth         ACCEPTED=True ATTACHED=True
+```
+
+Set the test request without displaying either credential:
+
+```powershell
+$uri = 'http://<node-ip>:30080/v1/chat/completions'
+$body = @{
+  model = 'gpt-oss:20b'
+  messages = @(@{
+    role = 'user'
+    content = 'Reply with exactly: OLLAMA VIA AGENTGATEWAY OK'
+  })
+  stream = $false
+} | ConvertTo-Json -Depth 5 -Compress
+```
+
+First send the request without a client credential:
+
+```powershell
+curl.exe -sS -o NUL -w '%{http_code}' `
+  -H 'Content-Type: application/json' `
+  -d $body $uri
+```
+
+Expected output:
+
+```text
+401
+```
+
+For an administrative validation, load the client key into memory and repeat
+the request. Do not print `$clientKey` or store it in shell history:
+
+```powershell
+$encoded = kubectl get secret osvbng-agent-client-key `
+  -n osvbng-aiops -o jsonpath='{.data.agent-runtime}'
+$clientKey = [Text.Encoding]::UTF8.GetString(
+  [Convert]::FromBase64String($encoded)
+)
+
+$response = Invoke-RestMethod -Uri $uri -Method Post `
+  -ContentType 'application/json' `
+  -Headers @{ Authorization = "Bearer $clientKey" } `
+  -Body $body
+$response.choices[0].message.content
+Remove-Variable clientKey
+```
+
+Expected output:
+
+```text
+OLLAMA VIA AGENTGATEWAY OK
+```
+
+This proves that unauthenticated inference is rejected and authenticated
+traffic follows `client -> Agentgateway -> Ollama Cloud`. The Ollama Cloud API
+key remains confined to Agentgateway's backend configuration.

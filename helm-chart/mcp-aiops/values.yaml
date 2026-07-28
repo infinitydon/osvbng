@@ -48,3 +48,17 @@ gateway:
   serviceType: NodePort
   port: 80
   nodePort: 30080
+
+ollamaCloud:
+  enabled: true
+  backendName: ollama-cloud
+  host: ollama.com
+  port: 443
+  path: /v1/chat/completions
+  model: ""
+  upstreamSecret:
+    name: ollama-cloud-api-key
+    key: OLLAMA_CLOUD_API_KEY
+  clientAuth:
+    enabled: true
+    secretName: osvbng-agent-client-key
