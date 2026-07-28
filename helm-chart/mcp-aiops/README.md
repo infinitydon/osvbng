@@ -141,6 +141,24 @@ Name: OSVBNG Operations
 The MCP connection remains inside the cluster and still traverses
 Agentgateway. Do not configure `mcp-osvbng-ops-proxy` directly in the UI.
 
+For the lab deployment, administrator credentials may be stored in the
+non-chart Secret `osvbng-open-webui-admin`. Recover them locally without adding
+them to shell history:
+
+```powershell
+$email = kubectl get secret osvbng-open-webui-admin -n osvbng-aiops `
+  -o jsonpath='{.data.email}'
+$password = kubectl get secret osvbng-open-webui-admin -n osvbng-aiops `
+  -o jsonpath='{.data.password}'
+
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($email))
+[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($password))
+```
+
+Open WebUI automatically disables self-registration after the first
+administrator is created. Create subsequent users from the administrator
+interface rather than reopening public signup.
+
 ## Verify
 
 See [MCP-VALIDATION.md](MCP-VALIDATION.md) for the complete Agentgateway and

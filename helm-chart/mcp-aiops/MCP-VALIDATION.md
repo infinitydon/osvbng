@@ -284,3 +284,15 @@ base=http://osvbng-mcp-gateway/v1 key=present
 After creating the first administrator account, add the MCP connection as
 described in the README and use the UI's connection verification. It must list
 the nine tools documented in section 4.
+
+For the current lab, the expected saved connection is:
+
+```text
+Name: OSVBNG Operations
+Type: MCP
+URL:  http://osvbng-mcp-gateway/mcp
+Tool count: 9
+```
+
+Verify that public signup was closed after creating the first administrator.
+A second request to `/api/v1/auths/signup` must return HTTP `403`.
