@@ -25,7 +25,8 @@ toolhive-operator:
 
 osvbngMcp:
   enabled: true
-  image: ghcr.io/infinitydon/osvbng-mcp:0.1.0@sha256:cbfd44be98a0b2b4ba727d4cefe1a5a3f0a549a64db751e00bb15634d44529f5
+  serverName: osvbng-ops
+  image: ghcr.io/infinitydon/osvbng-mcp:0.1.1@sha256:bb82d21a13fef828a893fe9caa3d19502a01d9e463de937c54c81e67af6d3130
   pullPolicy: IfNotPresent
   imagePullSecrets: []
   bngNamespace: osvbng-ha

@@ -3,6 +3,7 @@ from typing import Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from starlette.responses import JSONResponse
 
 
 NAMESPACE = os.getenv("OSVBNG_NAMESPACE", "osvbng-ha")
@@ -21,6 +22,12 @@ mcp = FastMCP(
     port=8000,
     stateless_http=True,
 )
+
+
+@mcp.custom_route("/", methods=["GET"])
+async def health(_request):
+    """Health endpoint used by the ToolHive backend checks."""
+    return JSONResponse({"status": "ok", "service": "osvbng-operations"})
 
 
 def _member_url(member: int, path: str) -> str:

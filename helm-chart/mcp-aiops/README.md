@@ -77,10 +77,18 @@ The Streamable HTTP endpoint is `http://127.0.0.1:8080/mcp`.
 ## Verify
 
 ```shell
-kubectl get mcpserver osvbng -n osvbng-aiops
+kubectl get mcpserver osvbng-ops -n osvbng-aiops
 kubectl get gateway,httproute,agentgatewaybackend -n osvbng-aiops
 kubectl get pods -n osvbng-aiops
 ```
+
+ToolHive creates two workloads for the operations server:
+
+- `osvbng-ops-0` is the custom operations MCP backend.
+- `osvbng-ops-<hash>` is ToolHive's proxy runner in front of the backend.
+
+Neither is an OSVBNG dataplane instance. The actual BNG pods remain `osvbng-0`
+and `osvbng-1` in the BNG release namespace (for example, `osvbng-ha`).
 
 Run unit tests:
 
@@ -106,9 +114,9 @@ and proves that switchover is blocked.
 Build and publish the image from `development/`:
 
 ```shell
-buildah bud -t ghcr.io/infinitydon/osvbng-mcp:0.1.0 \
+buildah bud -t ghcr.io/infinitydon/osvbng-mcp:0.1.1 \
   helm-chart/mcp-aiops/development
-buildah push ghcr.io/infinitydon/osvbng-mcp:0.1.0
+buildah push ghcr.io/infinitydon/osvbng-mcp:0.1.1
 ```
 
 Update `osvbngMcp.image` with the pushed manifest digest before deployment.

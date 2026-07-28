@@ -2,7 +2,7 @@
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: osvbng
+  name: {{ .Values.osvbngMcp.serverName }}
 spec:
   image: {{ .Values.osvbngMcp.image | quote }}
   {{- with .Values.osvbngMcp.imagePullSecrets }}
