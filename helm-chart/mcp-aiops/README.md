@@ -120,7 +120,7 @@ The UI connects to `http://osvbng-mcp-gateway/v1` with the internal
 `osvbng-agent-client-key`. It has no direct Ollama endpoint or Ollama Cloud
 credential. The allowed upstream Ollama Cloud models are `gpt-oss:20b` and
 `gpt-oss:120b`; the curated UI model is named
-`OSVBNG Operations - Ollama Cloud` and uses the upstream `gpt-oss:20b` model
+`gpt-oss:20b - OSVBNG Operations` and uses the upstream `gpt-oss:20b` model
 name as its base model. Open WebUI is configured to retain the upstream Ollama
 names without adding a connection prefix.
 

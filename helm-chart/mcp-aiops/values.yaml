@@ -58,9 +58,9 @@ open-webui:
     - name: OPENAI_API_CONFIGS
       value: '{"0":{"enable":true,"prefix_id":"","model_ids":["gpt-oss:20b","gpt-oss:120b"]}}'
     - name: DEFAULT_MODELS
-      value: gpt-oss:20b
+      value: osvbng-operations-ollama-cloud
     - name: DEFAULT_PINNED_MODELS
-      value: gpt-oss:20b,gpt-oss:120b
+      value: osvbng-operations-ollama-cloud,gpt-oss:120b
   resources:
     requests:
       cpu: 100m

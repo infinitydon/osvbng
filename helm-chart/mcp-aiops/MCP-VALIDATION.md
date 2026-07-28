@@ -290,7 +290,7 @@ the nine tools documented in section 4.
 The model selector should contain the curated entry:
 
 ```text
-OSVBNG Operations - Ollama Cloud
+gpt-oss:20b - OSVBNG Operations
 ```
 
 Its base model is the upstream Ollama model `gpt-oss:20b`. The raw
@@ -330,7 +330,8 @@ a proposed mutating action, with its scope and impact stated.
 
 ### Short validated prompts
 
-Use these in a new chat with `OSVBNG Operations - Ollama Cloud` selected:
+Use these in a new chat with `gpt-oss:20b - OSVBNG Operations` selected. Do
+not select the raw `gpt-oss:20b` entry, which has no OSVBNG MCP attachment:
 
 ```text
 Show current BNG health.
