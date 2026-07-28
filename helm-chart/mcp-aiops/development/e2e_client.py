@@ -36,7 +36,8 @@ async def main(url: str, lifecycle: bool) -> None:
 
             health = await session.call_tool("bng_health", {})
             status = await session.call_tool("ha_status", {"member": 0})
-            pools = await session.call_tool("cgnat_pools", {"member": 0})
+            pools = await session.call_tool("cgnat_pools", {})
+            mappings = await session.call_tool("cgnat_mappings", {})
             ue_range = await session.call_tool(
                 "ue_session_range",
                 {"start_session_id": 1, "end_session_id": 10},
@@ -51,8 +52,22 @@ async def main(url: str, lifecycle: bool) -> None:
                 "tools": names,
                 "bng_health_error": health.isError,
                 "ha_status_error": status.isError,
-                        "cgnat_pools_error": pools.isError,
-                        "ue_session_range_error": ue_range.isError,
+                "cgnat_pools_error": pools.isError,
+                "cgnat_mappings_error": mappings.isError,
+                "cgnat_mapping_count": (
+                    len(
+                        mappings.structuredContent.get("result", {})
+                        .get("data", [])
+                    )
+                    if mappings.structuredContent
+                    else None
+                ),
+                "cgnat_active_member": (
+                    pools.structuredContent.get("member")
+                    if pools.structuredContent
+                    else None
+                ),
+                "ue_session_range_error": ue_range.isError,
                 "switchover_blocked": blocked.isError,
             }
 

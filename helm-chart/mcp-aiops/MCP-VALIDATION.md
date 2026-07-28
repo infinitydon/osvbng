@@ -412,6 +412,17 @@ Show CGNAT pools for member 0.
 
 Expected tool: `cgnat_pools`
 
+The three CGNAT tools select the ACTIVE HA member automatically when `member`
+is omitted. An explicit `member` is the zero-based StatefulSet ordinal
+(`0` = `osvbng-0`, `1` = `osvbng-1`) and should be used only when the user
+requests that specific member. Never interpret a standby member's empty
+runtime tables as the platform-wide CGNAT state.
+
+Use `cgnat_mappings` once for subscriber-to-outside-IP and PBA port-block
+questions. Use `cgnat_sessions` only for transport flows belonging to one
+exact inside IP. An empty transport-flow result does not mean the PBA mapping
+is absent, and ICMP ping traffic may not appear in that flow table.
+
 ```text
 Call only the radius_servers tool. Do not call bng_health.
 ```

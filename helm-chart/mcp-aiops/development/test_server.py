@@ -19,6 +19,43 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["healthy"])
         self.assertEqual(2, len(result["members"]))
 
+    async def test_active_member_selection(self):
+        active = {
+            "result": {
+                "data": {
+                    "srgs": [{"name": "default", "state": "ACTIVE"}]
+                }
+            }
+        }
+        standby = {
+            "result": {
+                "data": {
+                    "srgs": [{"name": "default", "state": "STANDBY"}]
+                }
+            }
+        }
+        with patch.object(
+            server,
+            "_request",
+            new=AsyncMock(side_effect=[standby, active]),
+        ):
+            self.assertEqual(1, await server._active_member())
+
+    async def test_cgnat_pool_uses_active_member(self):
+        with (
+            patch.object(
+                server, "_active_member", new=AsyncMock(return_value=1)
+            ),
+            patch.object(
+                server,
+                "_request",
+                new=AsyncMock(return_value={"member": 1}),
+            ) as request,
+        ):
+            result = await server.cgnat_pools()
+        self.assertEqual(1, result["member"])
+        request.assert_awaited_once_with(1, "/api/show/cgnat/pools")
+
     async def test_mutation_disabled(self):
         with self.assertRaises(PermissionError):
             await server.ha_switchover(confirm=True)

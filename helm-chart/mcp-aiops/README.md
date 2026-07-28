@@ -44,6 +44,9 @@ The first release exposes:
 - `ue_ping`
 - `ue_curl`
 
+CGNAT tools query the current ACTIVE HA member automatically unless a
+zero-based StatefulSet member ordinal is supplied explicitly.
+
 All operational reads return structured JSON from the selected StatefulSet
 member. `ha_switchover` is denied unless `osvbngMcp.allowMutations` is enabled
 and the individual call includes `confirm: true`.

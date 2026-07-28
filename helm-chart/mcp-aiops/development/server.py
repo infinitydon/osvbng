@@ -54,6 +54,30 @@ async def _request(member: int, path: str, method: str = "GET") -> dict[str, Any
     return {"member": member, "endpoint": path, "result": payload}
 
 
+async def _active_member() -> int:
+    """Return the zero-based StatefulSet ordinal currently ACTIVE for the default SRG."""
+    states = []
+    for member in range(MEMBER_COUNT):
+        try:
+            status = await _request(member, "/api/show/ha/status")
+            srgs = status["result"].get("data", {}).get("srgs", [])
+            states.append(
+                {
+                    "member": member,
+                    "states": [srg.get("state") for srg in srgs],
+                }
+            )
+            if any(srg.get("state") == "ACTIVE" for srg in srgs):
+                return member
+        except Exception as exc:
+            states.append({"member": member, "error": str(exc)})
+    raise RuntimeError(f"no ACTIVE BNG member found: {states}")
+
+
+async def _resolve_member(member: int | None) -> int:
+    return await _active_member() if member is None else member
+
+
 async def _ue_request(
     path: str, method: str = "GET", payload: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -94,22 +118,29 @@ async def subscriber_sessions(member: int = 0) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def cgnat_pools(member: int = 0) -> dict[str, Any]:
-    """Return configured CGNAT pools."""
-    return await _request(member, "/api/show/cgnat/pools")
-
-
-@mcp.tool()
-async def cgnat_mappings(member: int = 0) -> dict[str, Any]:
-    """Return current CGNAT subscriber mappings."""
-    return await _request(member, "/api/show/cgnat/mappings")
-
-
-@mcp.tool()
-async def cgnat_sessions(inside_ip: str, member: int = 0) -> dict[str, Any]:
-    """Return CGNAT sessions for an exact subscriber IPv4 address."""
+async def cgnat_pools(member: int | None = None) -> dict[str, Any]:
+    """Return current CGNAT pools. Omit member to query the ACTIVE HA member automatically; an explicit member is a zero-based StatefulSet ordinal."""
     return await _request(
-        member, f"/api/show/cgnat/sessions?inside-ip={inside_ip}"
+        await _resolve_member(member), "/api/show/cgnat/pools"
+    )
+
+
+@mcp.tool()
+async def cgnat_mappings(member: int | None = None) -> dict[str, Any]:
+    """Return current PBA subscriber-to-outside-IP and port-block mappings from the ACTIVE HA member. Use this once for mapping, translation-address, or allocated-port-block questions."""
+    return await _request(
+        await _resolve_member(member), "/api/show/cgnat/mappings"
+    )
+
+
+@mcp.tool()
+async def cgnat_sessions(
+    inside_ip: str, member: int | None = None
+) -> dict[str, Any]:
+    """Return current transport-flow sessions for one exact subscriber IPv4 address. This is not the PBA mapping table; ICMP may work while this flow table is empty. Omit member to query ACTIVE."""
+    return await _request(
+        await _resolve_member(member),
+        f"/api/show/cgnat/sessions?inside-ip={inside_ip}",
     )
 
 
