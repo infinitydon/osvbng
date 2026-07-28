@@ -293,9 +293,10 @@ The model selector should contain the curated entry:
 OSVBNG Operations - Ollama Cloud
 ```
 
-Its base model is `ollama-cloud.gpt-oss:20b`. The raw `gpt-oss:20b` and
-`gpt-oss:120b` entries are also Ollama Cloud models; Open WebUI displays their
-upstream names without the connection prefix.
+Its base model is the upstream Ollama model `gpt-oss:20b`. The raw
+`gpt-oss:20b` and `gpt-oss:120b` entries are also available through Ollama
+Cloud. User-facing configuration uses these upstream names without a
+connection prefix.
 
 The curated model must have the `OSVBNG Operations` MCP server enabled in its
 model settings. Open WebUI persists this attachment as:

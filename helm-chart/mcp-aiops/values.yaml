@@ -56,11 +56,11 @@ open-webui:
     - name: WEBUI_NAME
       value: OSVBNG AIOps
     - name: OPENAI_API_CONFIGS
-      value: '{"0":{"enable":true,"prefix_id":"ollama-cloud","model_ids":["gpt-oss:20b","gpt-oss:120b"]}}'
+      value: '{"0":{"enable":true,"prefix_id":"","model_ids":["gpt-oss:20b","gpt-oss:120b"]}}'
     - name: DEFAULT_MODELS
-      value: ollama-cloud.gpt-oss:20b
+      value: gpt-oss:20b
     - name: DEFAULT_PINNED_MODELS
-      value: ollama-cloud.gpt-oss:20b,ollama-cloud.gpt-oss:120b
+      value: gpt-oss:20b,gpt-oss:120b
   resources:
     requests:
       cpu: 100m
