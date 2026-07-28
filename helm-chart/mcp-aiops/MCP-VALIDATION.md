@@ -248,3 +248,39 @@ OLLAMA VIA AGENTGATEWAY OK
 This proves that unauthenticated inference is rejected and authenticated
 traffic follows `client -> Agentgateway -> Ollama Cloud`. The Ollama Cloud API
 key remains confined to Agentgateway's backend configuration.
+
+## 7. Validate the operations UI
+
+```powershell
+kubectl get pod osvbng-open-webui-0 -n osvbng-aiops
+kubectl get pvc osvbng-open-webui -n osvbng-aiops
+kubectl get service osvbng-open-webui -n osvbng-aiops
+curl.exe http://<node-ip>:30081/health
+```
+
+Expected results:
+
+```text
+osvbng-open-webui-0   1/1   Running
+osvbng-open-webui     Bound
+osvbng-open-webui     NodePort   80:30081/TCP
+{"status":true}
+```
+
+Confirm the UI is configured with an Agentgateway endpoint and a client key
+without printing the credential:
+
+```powershell
+kubectl exec -n osvbng-aiops osvbng-open-webui-0 -- sh -c `
+  'printf "base=%s key=%s\n" "$OPENAI_API_BASE_URL" "${OPENAI_API_KEY:+present}"'
+```
+
+Expected output:
+
+```text
+base=http://osvbng-mcp-gateway/v1 key=present
+```
+
+After creating the first administrator account, add the MCP connection as
+described in the README and use the UI's connection verification. It must list
+the nine tools documented in section 4.

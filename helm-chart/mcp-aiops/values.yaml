@@ -23,6 +23,48 @@ toolhive-operator:
         cpu: 500m
         memory: 256Mi
 
+open-webui:
+  enabled: true
+  fullnameOverride: osvbng-open-webui
+  ollama:
+    enabled: false
+  pipelines:
+    enabled: false
+  replicaCount: 1
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: microk8s-hostpath
+  service:
+    type: NodePort
+    nodePort: 30081
+  enableOpenaiApi: true
+  openaiBaseApiUrl: http://osvbng-mcp-gateway/v1
+  openaiApiKeyExistingSecret: osvbng-agent-client-key
+  openaiApiKeyExistingSecretKey: agent-runtime
+  extraEnvVars:
+    - name: WEBUI_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: osvbng-open-webui-secret
+          key: WEBUI_SECRET_KEY
+  commonEnvVars:
+    - name: WEBUI_NAME
+      value: OSVBNG AIOps
+    - name: OPENAI_API_CONFIGS
+      value: '{"0":{"enable":true,"prefix_id":"ollama-cloud","model_ids":["gpt-oss:20b","gpt-oss:120b"]}}'
+    - name: DEFAULT_MODELS
+      value: ollama-cloud.gpt-oss:20b
+    - name: DEFAULT_PINNED_MODELS
+      value: ollama-cloud.gpt-oss:20b,ollama-cloud.gpt-oss:120b
+  resources:
+    requests:
+      cpu: 100m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
 osvbngMcp:
   enabled: true
   serverName: osvbng-ops

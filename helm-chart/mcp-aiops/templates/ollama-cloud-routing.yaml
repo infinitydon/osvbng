@@ -14,7 +14,6 @@ spec:
       {{- end }}
       host: {{ .Values.ollamaCloud.host }}
       port: {{ .Values.ollamaCloud.port }}
-      path: {{ .Values.ollamaCloud.path }}
   policies:
     auth:
       secretRef:
@@ -22,6 +21,9 @@ spec:
         key: {{ .Values.ollamaCloud.upstreamSecret.key }}
     tls:
       sni: {{ .Values.ollamaCloud.host }}
+    ai:
+      routes:
+        "/v1/chat/completions": Completions
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

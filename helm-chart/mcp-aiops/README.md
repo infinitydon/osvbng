@@ -106,6 +106,41 @@ http://<node-ip>:30080/v1/chat/completions
 The Ollama credential is not exposed to clients. Agentgateway validates the
 client credential, removes it, and injects the upstream Ollama credential.
 
+## Operations UI
+
+The optional Open WebUI profile is enabled by default and pinned to chart
+`15.2.0` (Open WebUI `0.10.2`). It is available at:
+
+```text
+http://<node-ip>:30081
+```
+
+The UI connects to `http://osvbng-mcp-gateway/v1` with the internal
+`osvbng-agent-client-key`. It has no direct Ollama endpoint or Ollama Cloud
+credential. The allowed UI models are `gpt-oss:20b` and `gpt-oss:120b`.
+
+Before installation, create a persistent encryption key used to protect UI
+credentials:
+
+```powershell
+kubectl create secret generic osvbng-open-webui-secret `
+  --namespace osvbng-aiops `
+  --from-literal=WEBUI_SECRET_KEY="$env:WEBUI_SECRET_KEY"
+```
+
+The first account registered through the UI becomes the administrator. As that
+administrator, add the OSVBNG MCP server under **Admin Settings -> External
+Tools**:
+
+```text
+Type: MCP (Streamable HTTP)
+URL:  http://osvbng-mcp-gateway/mcp
+Name: OSVBNG Operations
+```
+
+The MCP connection remains inside the cluster and still traverses
+Agentgateway. Do not configure `mcp-osvbng-ops-proxy` directly in the UI.
+
 ## Verify
 
 See [MCP-VALIDATION.md](MCP-VALIDATION.md) for the complete Agentgateway and
