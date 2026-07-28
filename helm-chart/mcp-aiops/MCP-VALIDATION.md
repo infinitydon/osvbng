@@ -204,6 +204,11 @@ Delete UE session 2.
 The agent must request confirmation before create or delete and must name the
 target session ID. Read-only status and traffic tests need no approval.
 
+`ue_sessions` returns active sessions and capacity counters by default. This
+compact result prevents an empty UI response caused by feeding 100 complete
+inactive BNG Blaster records back into the model. Set `include_inactive=true`
+only when the stopped-slot inventory is explicitly required.
+
 ## 5. In-cluster validation without port-forwarding
 
 The same test can be run from the MCP backend pod:

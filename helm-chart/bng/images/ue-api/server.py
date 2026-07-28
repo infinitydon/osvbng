@@ -5,8 +5,10 @@ import re
 import socket
 import subprocess
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
+from urllib.parse import parse_qs
 
 
 SOCKET_PATH = os.getenv("BNGBLASTER_SOCKET", "/run/shared/bngblaster.sock")
@@ -47,6 +49,27 @@ def validate_session_id(session_id: int) -> None:
 def session_info(session_id: int) -> dict:
     validate_session_id(session_id)
     return rpc("session-info", {"session-id": session_id})["session-info"]
+
+
+def session_summary(info: dict) -> dict:
+    return {
+        key: info[key]
+        for key in (
+            "session-id",
+            "session-state",
+            "dhcp-state",
+            "ipv4-address",
+            "interface",
+            "outer-vlan",
+            "inner-vlan",
+            "mac",
+            "tx-packets",
+            "rx-packets",
+            "tx-bytes",
+            "rx-bytes",
+        )
+        if key in info
+    }
 
 
 def wait_for_state(session_id: int, active: bool) -> dict:
@@ -205,7 +228,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         try:
-            if self.path == "/health":
+            parsed = urlparse(self.path)
+            if parsed.path == "/health":
                 self.send_json(
                     200,
                     {
@@ -215,16 +239,40 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
                 return
-            if self.path == "/sessions":
-                result = []
+            if parsed.path == "/sessions":
+                include_inactive = (
+                    parse_qs(parsed.query).get("include_inactive", ["false"])[0].lower()
+                    == "true"
+                )
+                active = []
+                inactive = []
+                errors = []
                 for session_id in range(1, SESSION_CAPACITY + 1):
                     try:
-                        result.append(session_info(session_id))
+                        info = session_summary(session_info(session_id))
+                        if (
+                            info.get("session-state") == "Established"
+                            or info.get("dhcp-state") == "Bound"
+                        ):
+                            active.append(info)
+                        elif include_inactive:
+                            inactive.append(info)
                     except Exception as exc:
-                        result.append({"session-id": session_id, "error": str(exc)})
-                self.send_json(200, {"capacity": SESSION_CAPACITY, "sessions": result})
+                        errors.append({"session-id": session_id, "error": str(exc)})
+                self.send_json(
+                    200,
+                    {
+                        "observed_at": datetime.now(timezone.utc).isoformat(),
+                        "capacity": SESSION_CAPACITY,
+                        "active_count": len(active),
+                        "inactive_count": SESSION_CAPACITY - len(active) - len(errors),
+                        "active_sessions": active,
+                        **({"inactive_sessions": inactive} if include_inactive else {}),
+                        **({"errors": errors} if errors else {}),
+                    },
+                )
                 return
-            match = SESSION_PATH.fullmatch(self.path)
+            match = SESSION_PATH.fullmatch(parsed.path)
             if match:
                 self.send_json(200, session_info(int(match.group(1))))
                 return

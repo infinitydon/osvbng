@@ -104,7 +104,7 @@ trafficTest:
   enabled: false
   image: "nicolaka/netshoot:v0.13@sha256:a20c2531bf35436ed3766cd6cfe89d352b050ccc4d7005ce6400adf97503da1b"
   bngblasterImage: "ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2"
-  apiImage: "ghcr.io/infinitydon/osvbng-ue-api:0.1.3@sha256:44a918c2dea9b9ea714fd542a249e7a3a0e7a10373274bdccf2bd0094ffc1eab"
+  apiImage: "ghcr.io/infinitydon/osvbng-ue-api:0.1.5@sha256:499b1f17675cbe34046dd3e24dba81c2568294155ef2c65075fa86a9ff7b1b29"
   apiPort: 8081
   pullPolicy: IfNotPresent
   imagePullSecrets: []

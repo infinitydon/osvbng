@@ -120,9 +120,10 @@ async def radius_servers(member: int = 0) -> dict[str, Any]:
 
 
 @mcp.tool()
-async def ue_sessions() -> dict[str, Any]:
-    """List all preallocated interactive UE slots and their live session state."""
-    return await _ue_request("/sessions")
+async def ue_sessions(include_inactive: bool = False) -> dict[str, Any]:
+    """Return a compact active UE summary and capacity counts. Set include_inactive only when every stopped slot is explicitly needed."""
+    suffix = "?include_inactive=true" if include_inactive else ""
+    return await _ue_request(f"/sessions{suffix}")
 
 
 @mcp.tool()
