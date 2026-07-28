@@ -128,6 +128,11 @@ WebUI persists this attachment as `server:mcp:osvbng-operations`.
 Knowledge-base tools are not a replacement for live BNG health, HA, RADIUS,
 subscriber, or CGNAT queries.
 
+Live answers should identify the MCP tools used in one concise evidence line.
+They should discuss cached or knowledge-base data only when it was actually
+used, and request approval only before a proposed change—not after ordinary
+read-only diagnostics.
+
 Before installation, create a persistent encryption key used to protect UI
 credentials:
 

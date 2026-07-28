@@ -316,6 +316,17 @@ The activity row should show an OSVBNG Operations tool such as `bng_health`.
 The answer must contain live evidence and must not use `list_knowledge_bases`
 as a substitute or invent unsupported `show ...` commands.
 
+Operational answers should use compact, conditional provenance. For example:
+
+```text
+Evidence: live MCP — bng_health, ha_status (observed 14:32 UTC)
+```
+
+The agent should mention cached, stale, unavailable, or knowledge-base data
+only when it was actually used or affects confidence. Read-only answers should
+not end with an approval request; approval is required only immediately before
+a proposed mutating action, with its scope and impact stated.
+
 For the current lab, the expected saved connection is:
 
 ```text
