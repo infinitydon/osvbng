@@ -11,6 +11,14 @@ RELEASE = os.getenv("OSVBNG_RELEASE", "osvbng")
 MEMBER_COUNT = int(os.getenv("OSVBNG_MEMBER_COUNT", "2"))
 TIMEOUT = float(os.getenv("OSVBNG_TIMEOUT", "10"))
 ALLOW_MUTATIONS = os.getenv("OSVBNG_ALLOW_MUTATIONS", "false").lower() == "true"
+UE_API_URL = os.getenv(
+    "OSVBNG_UE_API_URL",
+    "http://ue-test-api.osvbng-ha.svc.cluster.local:8081",
+).rstrip("/")
+UE_TIMEOUT = float(os.getenv("OSVBNG_UE_TIMEOUT", "60"))
+ALLOW_UE_MUTATIONS = (
+    os.getenv("OSVBNG_ALLOW_UE_MUTATIONS", "false").lower() == "true"
+)
 
 mcp = FastMCP(
     "osvbng-operations",
@@ -44,6 +52,15 @@ async def _request(member: int, path: str, method: str = "GET") -> dict[str, Any
         response.raise_for_status()
         payload = response.json()
     return {"member": member, "endpoint": path, "result": payload}
+
+
+async def _ue_request(
+    path: str, method: str = "GET", payload: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=UE_TIMEOUT) as client:
+        response = await client.request(method, f"{UE_API_URL}{path}", json=payload)
+        response.raise_for_status()
+        return response.json()
 
 
 @mcp.tool()
@@ -100,6 +117,66 @@ async def cgnat_sessions(inside_ip: str, member: int = 0) -> dict[str, Any]:
 async def radius_servers(member: int = 0) -> dict[str, Any]:
     """Return osvbng RADIUS server health and request counters."""
     return await _request(member, "/api/show/aaa/radius/servers")
+
+
+@mcp.tool()
+async def ue_sessions() -> dict[str, Any]:
+    """List all preallocated interactive UE slots and their live session state."""
+    return await _ue_request("/sessions")
+
+
+@mcp.tool()
+async def ue_session_status(session_id: int) -> dict[str, Any]:
+    """Return live state, address, and VLAN details for one interactive UE session."""
+    return await _ue_request(f"/sessions/{session_id}")
+
+
+@mcp.tool()
+async def ue_session_create(
+    session_id: int, confirm: bool = False
+) -> dict[str, Any]:
+    """Start a preallocated UE slot and wait for its DHCP session. This changes lab state and requires confirmation."""
+    if not ALLOW_UE_MUTATIONS:
+        raise PermissionError("UE session mutations are disabled")
+    if not confirm:
+        raise ValueError("confirm must be true")
+    return await _ue_request(f"/sessions/{session_id}", method="POST")
+
+
+@mcp.tool()
+async def ue_session_delete(
+    session_id: int, confirm: bool = False
+) -> dict[str, Any]:
+    """Release and stop an interactive UE session. This changes lab state and requires confirmation."""
+    if not ALLOW_UE_MUTATIONS:
+        raise PermissionError("UE session mutations are disabled")
+    if not confirm:
+        raise ValueError("confirm must be true")
+    return await _ue_request(f"/sessions/{session_id}", method="DELETE")
+
+
+@mcp.tool()
+async def ue_ping(
+    session_id: int, destination: str = "1.1.1.1", count: int = 3
+) -> dict[str, Any]:
+    """Send ping traffic through one established UE session and return its output."""
+    return await _ue_request(
+        f"/sessions/{session_id}/ping",
+        method="POST",
+        payload={"destination": destination, "count": count},
+    )
+
+
+@mcp.tool()
+async def ue_curl(
+    session_id: int, url: str = "http://example.com", max_time: int = 10
+) -> dict[str, Any]:
+    """Send an HTTP or HTTPS request through one established UE session."""
+    return await _ue_request(
+        f"/sessions/{session_id}/curl",
+        method="POST",
+        payload={"url": url, "max_time": max_time},
+    )
 
 
 @mcp.tool()

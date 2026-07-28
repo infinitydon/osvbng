@@ -23,6 +23,20 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(PermissionError):
             await server.ha_switchover(confirm=True)
 
+    async def test_ue_mutation_disabled(self):
+        with self.assertRaises(PermissionError):
+            await server.ue_session_create(1, confirm=True)
+
+    async def test_ue_status(self):
+        with patch.object(
+            server,
+            "_ue_request",
+            new=AsyncMock(return_value={"session-id": 1}),
+        ) as request:
+            result = await server.ue_session_status(1)
+        self.assertEqual(1, result["session-id"])
+        request.assert_awaited_once_with("/sessions/1")
+
 
 if __name__ == "__main__":
     unittest.main()

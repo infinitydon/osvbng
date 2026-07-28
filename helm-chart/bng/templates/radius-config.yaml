@@ -146,4 +146,33 @@ data:
     INSERT INTO radreply (username, attribute, op, value)
       VALUES ({{ .username | squote }}, 'Acct-Interim-Interval', ':=', {{ printf "%v" $.Values.radius.interimInterval | squote }});
     {{- end }}
+    {{- if and .Values.radius.autoProvisionTrafficTestUsers .Values.trafficTest.enabled }}
+    {{- range $offset := until (int .Values.trafficTest.sessionCapacity) }}
+    {{- $username := printf "02:00:00:00:00:%02x" (add $offset 1) }}
+    INSERT INTO radcheck (username, attribute, op, value)
+      SELECT {{ $username | squote }}, 'Cleartext-Password', ':=', {{ $.Values.radius.ipoePassword | squote }}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM radcheck
+        WHERE username = {{ $username | squote }} AND attribute = 'Cleartext-Password'
+      );
+    INSERT INTO radreply (username, attribute, op, value)
+      SELECT {{ $username | squote }}, 'Framed-Pool', ':=', 'subscriber-pool'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM radreply
+        WHERE username = {{ $username | squote }} AND attribute = 'Framed-Pool'
+      );
+    INSERT INTO radreply (username, attribute, op, value)
+      SELECT {{ $username | squote }}, 'Session-Timeout', ':=', '86400'
+      WHERE NOT EXISTS (
+        SELECT 1 FROM radreply
+        WHERE username = {{ $username | squote }} AND attribute = 'Session-Timeout'
+      );
+    INSERT INTO radreply (username, attribute, op, value)
+      SELECT {{ $username | squote }}, 'Acct-Interim-Interval', ':=', {{ printf "%v" $.Values.radius.interimInterval | squote }}
+      WHERE NOT EXISTS (
+        SELECT 1 FROM radreply
+        WHERE username = {{ $username | squote }} AND attribute = 'Acct-Interim-Interval'
+      );
+    {{- end }}
+    {{- end }}
 {{- end }}

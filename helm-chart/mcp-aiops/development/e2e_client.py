@@ -6,7 +6,7 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 
-async def main(url: str) -> None:
+async def main(url: str, lifecycle: bool) -> None:
     async with streamable_http_client(url) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
@@ -22,6 +22,12 @@ async def main(url: str) -> None:
                 "cgnat_sessions",
                 "radius_servers",
                 "ha_switchover",
+                "ue_sessions",
+                "ue_session_status",
+                "ue_session_create",
+                "ue_session_delete",
+                "ue_ping",
+                "ue_curl",
             }
             missing = required.difference(names)
             if missing:
@@ -36,17 +42,64 @@ async def main(url: str) -> None:
             if blocked.isError is not True:
                 raise RuntimeError("mutating tool was not blocked")
 
-            print(json.dumps({
+            result = {
                 "tools": names,
                 "bng_health_error": health.isError,
                 "ha_status_error": status.isError,
                 "cgnat_pools_error": pools.isError,
                 "switchover_blocked": blocked.isError,
-            }, indent=2))
+            }
+
+            if lifecycle:
+                created = await session.call_tool(
+                    "ue_session_create", {"session_id": 2, "confirm": True}
+                )
+                created_second = await session.call_tool(
+                    "ue_session_create", {"session_id": 3, "confirm": True}
+                )
+                status = await session.call_tool(
+                    "ue_session_status", {"session_id": 3}
+                )
+                ping = await session.call_tool(
+                    "ue_ping",
+                    {"session_id": 3, "destination": "10.255.0.1", "count": 3},
+                )
+                curl = await session.call_tool(
+                    "ue_curl",
+                    {
+                        "session_id": 3,
+                        "url": "https://example.com",
+                        "max_time": 15,
+                    },
+                )
+                deleted = await session.call_tool(
+                    "ue_session_delete", {"session_id": 2, "confirm": True}
+                )
+                deleted_second = await session.call_tool(
+                    "ue_session_delete", {"session_id": 3, "confirm": True}
+                )
+                result.update(
+                    {
+                        "ue_create_error": created.isError,
+                        "ue_second_create_error": created_second.isError,
+                        "ue_status_error": status.isError,
+                        "ue_ping_error": ping.isError,
+                        "ue_curl_error": curl.isError,
+                        "ue_delete_error": deleted.isError,
+                        "ue_second_delete_error": deleted_second.isError,
+                    }
+                )
+
+            print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:18080/mcp")
+    parser.add_argument(
+        "--lifecycle",
+        action="store_true",
+        help="create UE sessions 2 and 3, test session 3, then delete both",
+    )
     args = parser.parse_args()
-    asyncio.run(main(args.url))
+    asyncio.run(main(args.url, args.lifecycle))

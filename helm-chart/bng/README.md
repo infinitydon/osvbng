@@ -147,9 +147,11 @@ VPP interfaces `access`, `access.100`, and `core` in the up state.
 
 The chart has an interactive traffic-test mode containing:
 
-- `ue-test`, which runs a single BNG Blaster session with its per-session
-  TUN feature plus a netshoot sidecar. The sidecar exposes the DHCP-assigned
-  subscriber as Linux interface `bbl1`.
+- `ue-test`, which preallocates `trafficTest.sessionCapacity` BNG Blaster
+  slots (100 by default) with autostart disabled. Each established subscriber
+  is exposed as `bbl<session-id>` in the shared Pod network namespace.
+- `ue-api`, an internal sidecar and ClusterIP service that controls the BNG
+  Blaster Unix socket and runs per-session ping and curl tests.
 - Direct core egress from osvbng at `192.168.88.10/24` to gateway
   `192.168.88.1`. Subscriber traffic does not traverse Calico or a Kubernetes
   forwarding pod.
@@ -175,6 +177,21 @@ ping -I bbl1 -c 3 10.255.0.1
 ping -I bbl1 -c 3 1.1.1.1
 curl --interface bbl1 -I https://example.com
 ```
+
+The AIOps MCP server normally controls session lifecycle. The private API
+semantics are:
+
+```text
+POST   /sessions/<id>       start a preallocated UE slot
+GET    /sessions/<id>       return live session state
+DELETE /sessions/<id>       DHCP release, stop, and wait for Terminated/Init
+POST   /sessions/<id>/ping  run ping through bbl<id>
+POST   /sessions/<id>/curl  run HTTP traffic through bbl<id>
+```
+
+When the optional RADIUS profile and interactive test are both enabled,
+`radius.autoProvisionTrafficTestUsers` adds the deterministic BNG Blaster MAC
+identities for the configured capacity to a new PostgreSQL database.
 
 Confirm that osvbng, rather than the test edge, created the first translation:
 

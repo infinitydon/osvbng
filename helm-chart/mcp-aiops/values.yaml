@@ -72,14 +72,18 @@ open-webui:
 osvbngMcp:
   enabled: true
   serverName: osvbng-ops
-  image: ghcr.io/infinitydon/osvbng-mcp:0.1.1@sha256:bb82d21a13fef828a893fe9caa3d19502a01d9e463de937c54c81e67af6d3130
+  image: ghcr.io/infinitydon/osvbng-mcp:0.2.1@sha256:783b84d98ec7eb16736663bf4a4f0030ecc3cb3603d9a5e15635d89dba3a55fd
   pullPolicy: IfNotPresent
-  imagePullSecrets: []
+  imagePullSecrets:
+    - name: ghcr-pull
   bngNamespace: osvbng-ha
   releaseName: osvbng
   memberCount: 2
   requestTimeoutSeconds: 10
   allowMutations: false
+  ueApiUrl: http://ue-test-api.osvbng-ha.svc.cluster.local:8081
+  ueRequestTimeoutSeconds: 60
+  allowUeMutations: true
   resources:
     requests:
       cpu: 50m

@@ -36,10 +36,21 @@ The first release exposes:
 - `cgnat_sessions`
 - `radius_servers`
 - `ha_switchover`
+- `ue_sessions`
+- `ue_session_status`
+- `ue_session_create`
+- `ue_session_delete`
+- `ue_ping`
+- `ue_curl`
 
 All operational reads return structured JSON from the selected StatefulSet
 member. `ha_switchover` is denied unless `osvbngMcp.allowMutations` is enabled
 and the individual call includes `confirm: true`.
+
+UE lifecycle is backed by the private `ue-test-api` service in the BNG
+namespace. Create and delete activate or stop preallocated BNG Blaster slots;
+they require `osvbngMcp.allowUeMutations` and `confirm: true`. Status, ping, and
+curl remain read-only MCP operations.
 
 ## Install
 

@@ -141,7 +141,13 @@ Expected output:
     "ha_switchover",
     "ha_sync",
     "radius_servers",
-    "subscriber_sessions"
+    "subscriber_sessions",
+    "ue_curl",
+    "ue_ping",
+    "ue_session_create",
+    "ue_session_delete",
+    "ue_session_status",
+    "ue_sessions"
   ],
   "bng_health_error": false,
   "ha_status_error": false,
@@ -153,13 +159,50 @@ Expected output:
 This result proves that:
 
 - the client reached the MCP endpoint through Agentgateway;
-- all nine expected tool definitions were returned;
+- all fifteen expected tool definitions were returned;
 - live BNG health, HA status, and CGNAT pool calls completed successfully; and
 - the mutating HA switchover operation was denied by the default safety policy.
 
 An SDK message such as `Session termination failed: 202` can appear after the
 JSON result. It concerns session cleanup and does not invalidate the successful
 tool checks above.
+
+Run the governed two-UE lifecycle and traffic validation:
+
+```powershell
+.\.venv\Scripts\python e2e_client.py `
+  --url http://<node-ip>:30080/mcp `
+  --lifecycle
+```
+
+This starts sessions 2 and 3 concurrently, reads session 3, runs ping and curl
+through `bbl3`, then deletes both sessions. The expected lifecycle fields are
+all `false`:
+
+```json
+{
+  "ue_create_error": false,
+  "ue_second_create_error": false,
+  "ue_status_error": false,
+  "ue_ping_error": false,
+  "ue_curl_error": false,
+  "ue_delete_error": false,
+  "ue_second_delete_error": false
+}
+```
+
+Useful AIOps prompts:
+
+```text
+Show current interactive UE sessions.
+Create UE session 2.
+Ping 1.1.1.1 from UE session 2.
+Fetch http://example.com from UE session 2.
+Delete UE session 2.
+```
+
+The agent must request confirmation before create or delete and must name the
+target session ID. Read-only status and traffic tests need no approval.
 
 ## 5. In-cluster validation without port-forwarding
 

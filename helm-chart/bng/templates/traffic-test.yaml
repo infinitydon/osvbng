@@ -38,7 +38,7 @@ spec:
         app: ue-test
       annotations:
         k8s.v1.cni.cncf.io/networks: ue-test-access
-        checksum/ue-vlan-config: {{ printf "%v:%v:%v" .Values.trafficTest.outerVlanProtocol .Values.trafficTest.outerVlan .Values.trafficTest.innerVlan | sha256sum }}
+        checksum/ue-vlan-config: {{ printf "%v:%v:%v:%v" .Values.trafficTest.outerVlanProtocol .Values.trafficTest.outerVlan .Values.trafficTest.innerVlan .Values.trafficTest.sessionCapacity | sha256sum }}
         checksum/osvbng-subscriber-config: {{ include (print $.Template.BasePath "/osvbngconf.yaml") . | sha256sum }}
     spec:
       {{- with .Values.trafficTest.imagePullSecrets }}
@@ -83,21 +83,6 @@ spec:
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              until ip link show bbl1 >/dev/null 2>&1; do sleep 1; done
-              until SESSION_JSON=$(printf '%s\n' \
-                '{"command":"session-info","arguments":{"session-id":1}}' |
-                nc -U /run/shared/bngblaster.sock) &&
-                [ "$(printf '%s' "$SESSION_JSON" | jq -r '.["session-info"]["dhcp-state"]')" = "Bound" ]; do
-                sleep 1
-              done
-              SUBSCRIBER_IP=$(printf '%s' "$SESSION_JSON" |
-                jq -r '.["session-info"]["ipv4-address"]')
-              ip link set bbl1 up
-              ip route replace table 100 default dev bbl1
-              ip rule add from "$SUBSCRIBER_IP/32" table 100 2>/dev/null || true
-              echo "Interactive UE ready on bbl1:"
-              ip -4 address show dev bbl1
-              ip route
               exec sleep infinity
           securityContext:
             capabilities:
@@ -111,9 +96,40 @@ spec:
               command:
                 - sh
                 - -c
-                - ip -4 address show dev bbl1 | grep -q 'inet '
+                - test -S /run/shared/bngblaster.sock
             initialDelaySeconds: 2
             periodSeconds: 5
+          volumeMounts:
+            - name: runtime
+              mountPath: /run/shared
+        - name: ue-api
+          image: {{ .Values.trafficTest.apiImage | quote }}
+          imagePullPolicy: {{ .Values.trafficTest.pullPolicy }}
+          env:
+            - name: BNGBLASTER_SOCKET
+              value: /run/shared/bngblaster.sock
+            - name: UE_SESSION_CAPACITY
+              value: {{ .Values.trafficTest.sessionCapacity | quote }}
+            - name: UE_SESSION_TIMEOUT
+              value: {{ .Values.trafficTest.sessionTimeoutSeconds | quote }}
+            - name: UE_API_PORT
+              value: {{ .Values.trafficTest.apiPort | quote }}
+          ports:
+            - name: api
+              containerPort: {{ .Values.trafficTest.apiPort }}
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.trafficTest.resources | nindent 12 }}
           volumeMounts:
             - name: runtime
               mountPath: /run/shared
@@ -144,16 +160,18 @@ data:
             "vlan-mode": "1:1",
             "qinq": {{ eq .Values.trafficTest.outerVlanProtocol "802.1ad" }},
             "outer-vlan": {{ .Values.trafficTest.outerVlan }},
-            "inner-vlan": {{ .Values.trafficTest.innerVlan }},
+            "inner-vlan-min": {{ .Values.trafficTest.innerVlan }},
+            "inner-vlan-max": {{ add (int .Values.trafficTest.innerVlan) (sub (int .Values.trafficTest.sessionCapacity) 1) }},
             "tun": true
           }
         ]
       },
       "sessions": {
-        "count": 1,
-        "max-outstanding": 1,
-        "start-rate": 1,
-        "autostart": true
+        "count": {{ .Values.trafficTest.sessionCapacity }},
+        "max-outstanding": {{ .Values.trafficTest.sessionCapacity }},
+        "start-rate": {{ .Values.trafficTest.startRate }},
+        "stop-rate": {{ .Values.trafficTest.stopRate }},
+        "autostart": false
       },
       "dhcp": {
         "enable": true
@@ -169,4 +187,16 @@ data:
         "agent-remote-id": "k8s-ue"
       }
     }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ue-test-api
+spec:
+  selector:
+    app: ue-test
+  ports:
+    - name: http
+      port: {{ .Values.trafficTest.apiPort }}
+      targetPort: api
 {{- end }}

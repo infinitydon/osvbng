@@ -28,6 +28,12 @@ spec:
       value: {{ .Values.osvbngMcp.requestTimeoutSeconds | quote }}
     - name: OSVBNG_ALLOW_MUTATIONS
       value: {{ .Values.osvbngMcp.allowMutations | quote }}
+    - name: OSVBNG_UE_API_URL
+      value: {{ .Values.osvbngMcp.ueApiUrl | quote }}
+    - name: OSVBNG_UE_TIMEOUT
+      value: {{ .Values.osvbngMcp.ueRequestTimeoutSeconds | quote }}
+    - name: OSVBNG_ALLOW_UE_MUTATIONS
+      value: {{ .Values.osvbngMcp.allowUeMutations | quote }}
   resources:
     {{- toYaml .Values.osvbngMcp.resources | nindent 4 }}
 {{- end }}
