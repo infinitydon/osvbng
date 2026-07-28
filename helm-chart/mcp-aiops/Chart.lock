@@ -1,0 +1,9 @@
+dependencies:
+- name: agentgateway
+  repository: oci://cr.agentgateway.dev/charts
+  version: v1.4.0
+- name: toolhive-operator
+  repository: oci://ghcr.io/stacklok/toolhive
+  version: 0.40.1
+digest: sha256:56d32c45d05b1783afdc2f1cc5595a25eadf88fe8d143260a5451b0f3d31f74a
+generated: "2026-07-28T06:56:46.6034224-04:00"

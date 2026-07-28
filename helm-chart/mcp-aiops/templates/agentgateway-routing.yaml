@@ -1,0 +1,61 @@
+{{- if and .Values.gateway.enabled .Values.osvbngMcp.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: {{ .Values.gateway.name }}
+spec:
+  gatewayClassName: agentgateway
+  infrastructure:
+    parametersRef:
+      group: agentgateway.dev
+      kind: AgentgatewayParameters
+      name: {{ .Values.gateway.name }}
+  listeners:
+    - name: mcp
+      protocol: HTTP
+      port: {{ .Values.gateway.port }}
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: {{ .Values.gateway.name }}
+spec:
+  service:
+    spec:
+      type: {{ .Values.gateway.serviceType }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: osvbng-mcp
+spec:
+  mcp:
+    targets:
+      - name: osvbng
+        static:
+          backendRef:
+            name: mcp-osvbng-proxy
+          port: 8080
+          path: /mcp
+          protocol: StreamableHTTP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: osvbng-mcp
+spec:
+  parentRefs:
+    - name: {{ .Values.gateway.name }}
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /mcp
+      backendRefs:
+        - name: osvbng-mcp
+          group: agentgateway.dev
+          kind: AgentgatewayBackend
+{{- end }}

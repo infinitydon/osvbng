@@ -1,0 +1,48 @@
+agentgateway:
+  enabled: true
+  controller:
+    replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+toolhive-operator:
+  enabled: true
+  operator:
+    features:
+      experimental: false
+      server: true
+      registry: false
+      virtualMCP: false
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+osvbngMcp:
+  enabled: true
+  image: ghcr.io/infinitydon/osvbng-mcp:0.1.0@sha256:cbfd44be98a0b2b4ba727d4cefe1a5a3f0a549a64db751e00bb15634d44529f5
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  bngNamespace: osvbng-ha
+  releaseName: osvbng
+  memberCount: 2
+  requestTimeoutSeconds: 10
+  allowMutations: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+gateway:
+  enabled: true
+  name: osvbng-mcp-gateway
+  serviceType: ClusterIP
+  port: 80
