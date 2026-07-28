@@ -65,14 +65,15 @@ helm upgrade --install osvbng-aiops .\helm-chart\mcp-aiops `
   --set 'osvbngMcp.imagePullSecrets[0].name=ghcr-pull'
 ```
 
-The default Gateway Service is `ClusterIP`. Use a port-forward for clients
-outside the cluster:
+The Gateway Service defaults to `NodePort` port `30080`. Access it through the
+IP address of any reachable Kubernetes node:
 
 ```shell
-kubectl port-forward -n osvbng-aiops service/osvbng-mcp-gateway 8080:80
+curl http://<node-ip>:30080/mcp
 ```
 
-The Streamable HTTP endpoint is `http://127.0.0.1:8080/mcp`.
+The Streamable HTTP endpoint is `http://<node-ip>:30080/mcp`. Override
+`gateway.nodePort` if port `30080` is unavailable.
 
 ## Verify
 

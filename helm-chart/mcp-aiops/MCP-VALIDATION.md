@@ -102,28 +102,30 @@ mcp-osvbng-ops-proxy   8080
 
 ## 4. List and exercise the MCP tools
 
-Start a port-forward in one terminal:
+Find a reachable worker-node address and confirm the allocated NodePort:
 
 ```powershell
-kubectl port-forward -n osvbng-aiops service/osvbng-mcp-gateway 8080:80
+kubectl get nodes -o wide
+kubectl get service osvbng-mcp-gateway -n osvbng-aiops
 ```
 
 Expected output:
 
 ```text
-Forwarding from 127.0.0.1:8080 -> 8080
-Forwarding from [::1]:8080 -> 8080
+NAME                  TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)
+osvbng-mcp-gateway    NodePort   <cluster-ip>     <none>        80:30080/TCP
 ```
 
-In a second terminal, install the client dependencies if needed and run the
-deterministic validation client:
+Install the client dependencies if needed and run the deterministic validation
+client. Replace `<node-ip>` with a reachable address from `kubectl get nodes
+-o wide`:
 
 ```powershell
 cd helm-chart\mcp-aiops\development
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
 .\.venv\Scripts\python e2e_client.py `
-  --url http://127.0.0.1:8080/mcp
+  --url http://<node-ip>:30080/mcp
 ```
 
 Expected output:

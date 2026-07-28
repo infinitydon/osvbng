@@ -45,5 +45,6 @@ osvbngMcp:
 gateway:
   enabled: true
   name: osvbng-mcp-gateway
-  serviceType: ClusterIP
+  serviceType: NodePort
   port: 80
+  nodePort: 30080

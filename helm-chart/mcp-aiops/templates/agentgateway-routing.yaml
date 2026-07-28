@@ -26,6 +26,13 @@ spec:
   service:
     spec:
       type: {{ .Values.gateway.serviceType }}
+      {{- if and (eq .Values.gateway.serviceType "NodePort") .Values.gateway.nodePort }}
+      ports:
+        - name: listener-{{ .Values.gateway.port }}
+          port: {{ .Values.gateway.port }}
+          targetPort: {{ .Values.gateway.port }}
+          nodePort: {{ .Values.gateway.nodePort }}
+      {{- end }}
 ---
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
