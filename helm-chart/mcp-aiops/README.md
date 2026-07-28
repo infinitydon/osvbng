@@ -122,6 +122,12 @@ credential. The allowed upstream Ollama Cloud models are `gpt-oss:20b` and
 `gpt-oss:120b`; the curated UI model is named
 `OSVBNG Operations - Ollama Cloud`.
 
+Attach the `OSVBNG Operations` MCP connection to the curated model so live
+operations prompts automatically receive the nine governed OSVBNG tools. Open
+WebUI persists this attachment as `server:mcp:osvbng-operations`.
+Knowledge-base tools are not a replacement for live BNG health, HA, RADIUS,
+subscriber, or CGNAT queries.
+
 Before installation, create a persistent encryption key used to protect UI
 credentials:
 

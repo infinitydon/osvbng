@@ -297,6 +297,25 @@ Its base model is `ollama-cloud.gpt-oss:20b`. The raw `gpt-oss:20b` and
 `gpt-oss:120b` entries are also Ollama Cloud models; Open WebUI displays their
 upstream names without the connection prefix.
 
+The curated model must have the `OSVBNG Operations` MCP server enabled in its
+model settings. Open WebUI persists this attachment as:
+
+```text
+server:mcp:osvbng-operations
+```
+
+Start a new chat after changing model tools because an open chat can retain its
+earlier tool selection. Use this live validation prompt:
+
+```text
+Use the attached OSVBNG Operations MCP tools to report current overall platform
+health. You must call a live tool and cite its returned evidence.
+```
+
+The activity row should show an OSVBNG Operations tool such as `bng_health`.
+The answer must contain live evidence and must not use `list_knowledge_bases`
+as a substitute or invent unsupported `show ...` commands.
+
 For the current lab, the expected saved connection is:
 
 ```text
