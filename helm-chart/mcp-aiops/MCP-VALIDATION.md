@@ -256,6 +256,7 @@ kubectl get pod osvbng-open-webui-0 -n osvbng-aiops
 kubectl get pvc osvbng-open-webui -n osvbng-aiops
 kubectl get service osvbng-open-webui -n osvbng-aiops
 curl.exe http://<node-ip>:30081/health
+curl.exe http://<node-ip>:30081/api/version
 ```
 
 Expected results:
@@ -265,6 +266,7 @@ osvbng-open-webui-0   1/1   Running
 osvbng-open-webui     Bound
 osvbng-open-webui     NodePort   80:30081/TCP
 {"status":true}
+{"version":"0.11.0"}
 ```
 
 Confirm the UI is configured with an Agentgateway endpoint and a client key
@@ -284,6 +286,16 @@ base=http://osvbng-mcp-gateway/v1 key=present
 After creating the first administrator account, add the MCP connection as
 described in the README and use the UI's connection verification. It must list
 the nine tools documented in section 4.
+
+The model selector should contain the curated entry:
+
+```text
+OSVBNG Operations - Ollama Cloud
+```
+
+Its base model is `ollama-cloud.gpt-oss:20b`. The raw `gpt-oss:20b` and
+`gpt-oss:120b` entries are also Ollama Cloud models; Open WebUI displays their
+upstream names without the connection prefix.
 
 For the current lab, the expected saved connection is:
 

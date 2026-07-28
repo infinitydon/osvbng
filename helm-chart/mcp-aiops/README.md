@@ -108,8 +108,9 @@ client credential, removes it, and injects the upstream Ollama credential.
 
 ## Operations UI
 
-The optional Open WebUI profile is enabled by default and pinned to chart
-`15.2.0` (Open WebUI `0.10.2`). It is available at:
+The optional Open WebUI profile is enabled by default. It uses the latest
+official Helm chart currently published (`15.2.0`) with the stable Open WebUI
+application image overridden to `0.11.0`. It is available at:
 
 ```text
 http://<node-ip>:30081
@@ -117,7 +118,9 @@ http://<node-ip>:30081
 
 The UI connects to `http://osvbng-mcp-gateway/v1` with the internal
 `osvbng-agent-client-key`. It has no direct Ollama endpoint or Ollama Cloud
-credential. The allowed UI models are `gpt-oss:20b` and `gpt-oss:120b`.
+credential. The allowed upstream Ollama Cloud models are `gpt-oss:20b` and
+`gpt-oss:120b`; the curated UI model is named
+`OSVBNG Operations - Ollama Cloud`.
 
 Before installation, create a persistent encryption key used to protect UI
 credentials:
