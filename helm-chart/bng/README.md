@@ -3,8 +3,8 @@
 This chart deploys osvbng `v0.16.0` on Kubernetes with two VFIO/DPDK devices
 allocated by the SR-IOV Network Device Plugin, native PBA CGNAT, active/standby
 HA, BNG Blaster `0.9.37`, and an optional FreeRADIUS/PostgreSQL AAA profile.
-The default profile is sized for 100 concurrent IPoE subscribers using QinQ
-(S-VLAN 100 and C-VLANs 100-199).
+The default profile is sized for 20 concurrent IPoE subscribers using QinQ
+(S-VLAN 100 and C-VLANs 100-119).
 
 ## Tested environment
 
@@ -131,7 +131,7 @@ kubectl exec -n osvbng osvbng-0 -- \
   vppctl -s /run/osvbng/cli.sock show interface
 ```
 
-The expected default result is 100 DHCP ACKs, 100 bound IPoE sessions, and
+The expected default result is 20 DHCP ACKs, 20 bound IPoE sessions, and
 VPP interfaces `access`, `access.100`, and `core` in the up state.
 
 ## Images
@@ -148,7 +148,7 @@ VPP interfaces `access`, `access.100`, and `core` in the up state.
 The chart has an interactive traffic-test mode containing:
 
 - `ue-test`, which preallocates `trafficTest.sessionCapacity` BNG Blaster
-  slots (100 by default) with autostart disabled. Each established subscriber
+  slots (20 by default) with autostart disabled. Each established subscriber
   is exposed as `bbl<session-id>` in the shared Pod network namespace.
 - `ue-api`, an internal sidecar and ClusterIP service that controls the BNG
   Blaster Unix socket and runs per-session ping and curl tests.
@@ -157,7 +157,7 @@ The chart has an interactive traffic-test mode containing:
   forwarding pod.
 
 The access test interface is exclusive, so traffic-test mode and the
-100-session BNG Blaster Job cannot run simultaneously. Helm rejects
+20-session BNG Blaster Job cannot run simultaneously. Helm rejects
 that invalid combination. Switch from the scale test to interactive mode:
 
 ```shell

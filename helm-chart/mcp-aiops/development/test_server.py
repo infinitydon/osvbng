@@ -37,6 +37,25 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, result["session-id"])
         request.assert_awaited_once_with("/sessions/1")
 
+    async def test_ue_session_range(self):
+        with patch.object(
+            server,
+            "_ue_request",
+            new=AsyncMock(
+                return_value={
+                    "requested_range": {
+                        "start_session_id": 1,
+                        "end_session_id": 10,
+                    }
+                }
+            ),
+        ) as request:
+            result = await server.ue_session_range(1, 10)
+        self.assertEqual(10, result["requested_range"]["end_session_id"])
+        request.assert_awaited_once_with(
+            "/sessions?start_session_id=1&end_session_id=10&include_inactive=true"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

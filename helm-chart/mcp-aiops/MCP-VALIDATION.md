@@ -205,9 +205,17 @@ The agent must request confirmation before create or delete and must name the
 target session ID. Read-only status and traffic tests need no approval.
 
 `ue_sessions` returns active sessions and capacity counters by default. This
-compact result prevents an empty UI response caused by feeding 100 complete
+compact result prevents an empty UI response caused by feeding all complete
 inactive BNG Blaster records back into the model. Set `include_inactive=true`
 only when the stopped-slot inventory is explicitly required.
+
+For current mappings across numbered sessions, use `ue_session_range`; for
+example, `ue_session_range(1, 10)`. Its response is a fresh, inclusive range.
+The returned `session-id`, `ipv4-address`, and `linux-interface` (`bblN`) must
+be reproduced without renumbering. The `interface` field is the BNG Blaster
+access interface (`net1`), not the per-session Linux TUN. Earlier
+`ue_session_create` responses are
+historical evidence and must not be presented as current state.
 
 ## 5. In-cluster validation without port-forwarding
 
@@ -352,6 +360,11 @@ model settings. Open WebUI persists this attachment as:
 ```text
 server:mcp:osvbng-operations
 ```
+
+Its system prompt must route numbered UE ranges and current session-to-IP
+mapping questions to `ue_session_range` immediately before answering. It must
+treat create responses as historical and copy the fresh session IDs, addresses,
+access interfaces, and Linux interfaces without renumbering.
 
 Start a new chat after changing model tools because an open chat can retain its
 earlier tool selection. Use this live validation prompt:

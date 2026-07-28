@@ -12,7 +12,7 @@ from urllib.parse import parse_qs
 
 
 SOCKET_PATH = os.getenv("BNGBLASTER_SOCKET", "/run/shared/bngblaster.sock")
-SESSION_CAPACITY = int(os.getenv("UE_SESSION_CAPACITY", "100"))
+SESSION_CAPACITY = int(os.getenv("UE_SESSION_CAPACITY", "20"))
 SESSION_TIMEOUT = int(os.getenv("UE_SESSION_TIMEOUT", "30"))
 LISTEN_PORT = int(os.getenv("UE_API_PORT", "8081"))
 SESSION_PATH = re.compile(r"^/sessions/([1-9][0-9]*)$")
@@ -48,7 +48,9 @@ def validate_session_id(session_id: int) -> None:
 
 def session_info(session_id: int) -> dict:
     validate_session_id(session_id)
-    return rpc("session-info", {"session-id": session_id})["session-info"]
+    info = rpc("session-info", {"session-id": session_id})["session-info"]
+    info["linux-interface"] = f"bbl{session_id}"
+    return info
 
 
 def session_summary(info: dict) -> dict:
@@ -60,6 +62,7 @@ def session_summary(info: dict) -> dict:
             "dhcp-state",
             "ipv4-address",
             "interface",
+            "linux-interface",
             "outer-vlan",
             "inner-vlan",
             "mac",
@@ -240,14 +243,24 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 return
             if parsed.path == "/sessions":
+                query = parse_qs(parsed.query)
                 include_inactive = (
-                    parse_qs(parsed.query).get("include_inactive", ["false"])[0].lower()
-                    == "true"
+                    query.get("include_inactive", ["false"])[0].lower() == "true"
                 )
+                start_id = int(query.get("start_session_id", ["1"])[0])
+                end_id = int(
+                    query.get("end_session_id", [str(SESSION_CAPACITY)])[0]
+                )
+                validate_session_id(start_id)
+                validate_session_id(end_id)
+                if start_id > end_id:
+                    raise ValueError(
+                        "start_session_id must be less than or equal to end_session_id"
+                    )
                 active = []
                 inactive = []
                 errors = []
-                for session_id in range(1, SESSION_CAPACITY + 1):
+                for session_id in range(start_id, end_id + 1):
                     try:
                         info = session_summary(session_info(session_id))
                         if (
@@ -264,8 +277,14 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "observed_at": datetime.now(timezone.utc).isoformat(),
                         "capacity": SESSION_CAPACITY,
+                        "requested_range": {
+                            "start_session_id": start_id,
+                            "end_session_id": end_id,
+                        },
                         "active_count": len(active),
-                        "inactive_count": SESSION_CAPACITY - len(active) - len(errors),
+                        "inactive_count": (
+                            end_id - start_id + 1 - len(active) - len(errors)
+                        ),
                         "active_sessions": active,
                         **({"inactive_sessions": inactive} if include_inactive else {}),
                         **({"errors": errors} if errors else {}),

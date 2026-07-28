@@ -72,7 +72,7 @@ open-webui:
 osvbngMcp:
   enabled: true
   serverName: osvbng-ops
-  image: ghcr.io/infinitydon/osvbng-mcp:0.2.2@sha256:81ef8c6cfeb4ec2534642022fd8fdbaf313847341510178c22d9e2fbc3400515
+  image: ghcr.io/infinitydon/osvbng-mcp:0.2.4@sha256:4a1a8af58cdd1814f342aa5617d4237834d61883762359180da837ec88af9eca
   pullPolicy: IfNotPresent
   imagePullSecrets:
     - name: ghcr-pull

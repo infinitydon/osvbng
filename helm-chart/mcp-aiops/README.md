@@ -38,6 +38,7 @@ The first release exposes:
 - `ha_switchover`
 - `ue_sessions`
 - `ue_session_status`
+- `ue_session_range`
 - `ue_session_create`
 - `ue_session_delete`
 - `ue_ping`

@@ -121,14 +121,27 @@ async def radius_servers(member: int = 0) -> dict[str, Any]:
 
 @mcp.tool()
 async def ue_sessions(include_inactive: bool = False) -> dict[str, Any]:
-    """Return a compact active UE summary and capacity counts. Set include_inactive only when every stopped slot is explicitly needed."""
+    """Read authoritative current UE state. Preserve returned session IDs exactly and never infer current mappings from earlier create responses."""
     suffix = "?include_inactive=true" if include_inactive else ""
     return await _ue_request(f"/sessions{suffix}")
 
 
 @mcp.tool()
+async def ue_session_range(
+    start_session_id: int, end_session_id: int
+) -> dict[str, Any]:
+    """Read authoritative current state for an inclusive UE session-ID range. Use for questions about multiple numbered sessions and preserve every returned session-id, IPv4 address, access interface, and linux-interface exactly."""
+    return await _ue_request(
+        "/sessions"
+        f"?start_session_id={start_session_id}"
+        f"&end_session_id={end_session_id}"
+        "&include_inactive=true"
+    )
+
+
+@mcp.tool()
 async def ue_session_status(session_id: int) -> dict[str, Any]:
-    """Return live state, address, and VLAN details for one interactive UE session."""
+    """Read authoritative current state, address, VLANs, and counters for exactly one interactive UE session."""
     return await _ue_request(f"/sessions/{session_id}")
 
 

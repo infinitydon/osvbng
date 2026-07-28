@@ -24,6 +24,7 @@ async def main(url: str, lifecycle: bool) -> None:
                 "ha_switchover",
                 "ue_sessions",
                 "ue_session_status",
+                "ue_session_range",
                 "ue_session_create",
                 "ue_session_delete",
                 "ue_ping",
@@ -36,6 +37,10 @@ async def main(url: str, lifecycle: bool) -> None:
             health = await session.call_tool("bng_health", {})
             status = await session.call_tool("ha_status", {"member": 0})
             pools = await session.call_tool("cgnat_pools", {"member": 0})
+            ue_range = await session.call_tool(
+                "ue_session_range",
+                {"start_session_id": 1, "end_session_id": 10},
+            )
             blocked = await session.call_tool(
                 "ha_switchover", {"member": 0, "confirm": True}
             )
@@ -46,7 +51,8 @@ async def main(url: str, lifecycle: bool) -> None:
                 "tools": names,
                 "bng_health_error": health.isError,
                 "ha_status_error": status.isError,
-                "cgnat_pools_error": pools.isError,
+                        "cgnat_pools_error": pools.isError,
+                        "ue_session_range_error": ue_range.isError,
                 "switchover_blocked": blocked.isError,
             }
 
