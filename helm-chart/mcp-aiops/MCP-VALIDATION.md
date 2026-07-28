@@ -327,6 +327,43 @@ only when it was actually used or affects confidence. Read-only answers should
 not end with an approval request; approval is required only immediately before
 a proposed mutating action, with its scope and impact stated.
 
+### Short validated prompts
+
+Use these in a new chat with `OSVBNG Operations - Ollama Cloud` selected:
+
+```text
+Show current BNG health.
+```
+
+Expected tool: `bng_health`
+
+```text
+Check HA status for member 0.
+```
+
+Expected tool: `ha_status`
+
+```text
+Show CGNAT pools for member 0.
+```
+
+Expected tool: `cgnat_pools`
+
+```text
+Call only the radius_servers tool. Do not call bng_health.
+```
+
+Expected tool: `radius_servers`
+
+```text
+Show current subscriber sessions.
+```
+
+Expected tool: `subscriber_sessions`
+
+These prompts are read-only. The agent should return live evidence without
+asking for approval.
+
 For the current lab, the expected saved connection is:
 
 ```text
