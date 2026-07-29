@@ -219,6 +219,20 @@ The response must come from `/api/show/running-config`. Sensitive values must
 already be represented as `<redacted>` in the tool result; prompt instructions
 are not the security boundary.
 
+Presentation contract:
+
+- A **dump** request renders each requested member under a level-three heading
+  containing its exact pod name, followed by a fenced `yaml` block. Do not
+  replace the configuration with prose highlights.
+- A **compare** or **differences** request renders only a compact Markdown table
+  with `Path`, `osvbng-0`, and `osvbng-1`; values must be complete, never
+  abbreviated with `...`.
+- A request for both dump and comparison renders the diff table first, followed
+  by the two YAML blocks.
+- Do not add common-configuration highlights, recommendations, or an overall
+  status section unless the user asks for analysis.
+- End with one concise evidence line containing the tool name and timestamp.
+
 The agent must request confirmation before create or delete and must name the
 target session ID. Read-only status and traffic tests need no approval.
 
