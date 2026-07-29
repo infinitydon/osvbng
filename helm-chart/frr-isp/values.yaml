@@ -1,0 +1,57 @@
+image:
+  repository: quay.io/frrouting/frr
+  tag: "10.7.0"
+  digest: "sha256:a0ed0e4f8727631c8303dd9a4e8199b47464a17a5253135a2c622286aeaec46b"
+  pullPolicy: IfNotPresent
+
+ha:
+  enabled: true
+  coreVip: 172.31.255.1/29
+  uplinkVip: 192.168.88.249/24
+  advertisementIntervalMs: 500
+  keepalivedImage: alpine:3.22.1
+
+upstream:
+  gateway: 192.168.88.1
+
+cgnat:
+  prefix: 192.168.88.12/30
+
+bng:
+  members:
+    - address: 172.31.255.2
+      api: http://osvbng-0.osvbng-headless.osvbng-ha.svc.cluster.local:8080
+    - address: 172.31.255.3
+      api: http://osvbng-1.osvbng-headless.osvbng-ha.svc.cluster.local:8080
+
+clusterServiceCidr: 10.152.183.0/24
+
+members:
+  - name: a
+    nodeName: ebpf-bng-node-03-ubuntu-focal
+    priority: 150
+    peerCoreAddress: 172.31.255.5
+    core:
+      parent: enp6s19
+      address: 172.31.255.4/29
+    uplink:
+      parent: enp7s2
+      address: 192.168.88.250/24
+  - name: b
+    nodeName: ebpf-bng-cp-01
+    priority: 100
+    peerCoreAddress: 172.31.255.4
+    core:
+      parent: ens19
+      address: 172.31.255.5/29
+    uplink:
+      parent: eth0
+      address: 192.168.88.251/24
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 96Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
