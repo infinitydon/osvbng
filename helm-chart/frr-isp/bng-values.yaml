@@ -31,3 +31,9 @@ osvbng:
         coreAddress: 172.31.255.3/29
         priority: 90
         preempt: false
+    srg:
+      interfaces:
+        - access
+      networks:
+        - prefix: 10.255.0.0/24
+        - prefix: 192.168.88.12/30

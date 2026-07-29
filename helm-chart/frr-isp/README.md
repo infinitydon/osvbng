@@ -18,24 +18,47 @@ The default routing profile uses eBGP:
 - OSVBNG ASN: `65010`
 - ISP FRR ASN: `65020`
 - every BNG peers with both ISP routers
-- only the BNG whose SRG state is `ACTIVE` originates `192.168.88.12/30`
+- only the BNG whose SRG is active originates the subscriber and CGNAT
+  prefixes
 - both ISP routers retain the learned route, independently of which router
   currently owns the VRRP VIP
 
-OSVBNG 0.16 does not natively associate a CGNAT network statement with SRG
-state. The BNG chart therefore includes a small `bgp-ha-advertiser` sidecar.
-It uses the local HA API and local FRR VTY socket to originate or withdraw the
-prefix. The ISP routers do not query the Kubernetes or OSVBNG APIs.
+OSVBNG 0.16 natively associates the prefixes under
+`ha.srgs.default.networks` with SRG state. It originates those prefixes while
+the SRG is `ACTIVE` or `ACTIVE_SOLO` and withdraws them in standby states.
+The ISP routers do not query the Kubernetes or OSVBNG APIs.
 
-The profile disables FRR's generic `ebgp-requires-policy` guard because this
-is a closed lab with exactly one permitted prefix. Production deployments
-should replace that setting with explicit inbound and outbound prefix lists
-and route maps.
+The BNG profile applies an explicit `OSVBNG-EXPORT` route policy to its eBGP
+neighbors. Production deployments should narrow that policy with prefix sets
+for the exact subscriber and CGNAT allocations.
 
 `bng-values.yaml` is an integration values file for the separate `bng` Helm
 release. It moves the BNG core interfaces to the transit subnet, enables the
 BGP peers, disables proxy ARP, and keeps the CGNAT addresses in the routed
 pool. The FRR chart cannot change another Helm release's values.
+
+## HA behavior in this Kubernetes lab
+
+Keep `preempt` disabled with OSVBNG 0.16. A tracked-interface priority change
+can move the SRG and BGP routes from `STANDBY` to `ACTIVE`, but v0.16 restores
+synced subscriber sessions only when promotion starts in `STANDBY_ALONE`.
+
+For a hard failure, prevent the StatefulSet from immediately recreating the
+failed higher-priority member, wait for the survivor to reach
+`STANDBY_ALONE`, and then call:
+
+```shell
+curl -sS -X POST \
+  -H 'Content-Type: application/json' \
+  -d '{"force":true,"srg_names":["default"]}' \
+  http://osvbng-1.osvbng-headless:8080/api/exec/ha/switchover
+```
+
+The v0.16 forced-promotion path restores synchronized subscriber and CGNAT
+state. End-to-end forwarding additionally depends on the upstream L2 domain
+learning the SRG virtual MAC on the survivor. Validate that MAC movement on
+the target VirtIO or physical switching platform before treating the profile
+as production HA.
 
 ```shell
 helm upgrade osvbng ./helm-chart/bng --namespace osvbng-ha \

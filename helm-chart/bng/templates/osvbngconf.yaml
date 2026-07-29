@@ -128,7 +128,8 @@ data:
             remote-as: {{ $.Values.osvbng.bgp.peerAs }}
             description: {{ printf "FRR ISP %s" .name | quote }}
             bfd: {{ $.Values.osvbng.bgp.bfd }}
-            ipv4-unicast: {}
+            ipv4-unicast:
+              route-policy-out: OSVBNG-EXPORT
           {{- end }}
         ipv4-unicast:
           networks: {}
@@ -139,6 +140,13 @@ data:
           - destination: {{ .Values.osvbng.bgp.cgnatPrefix }}
             device: Null0
       {{- end }}
+    {{- if .Values.osvbng.bgp.enabled }}
+    routing-policies:
+      route-policies:
+        OSVBNG-EXPORT:
+          - sequence: 10
+            action: permit
+    {{- end }}
     aaa:
       {{- if .Values.radius.enabled }}
       auth_provider: radius
