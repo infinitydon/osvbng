@@ -201,6 +201,24 @@ Fetch http://example.com from UE session 2.
 Delete UE session 2.
 ```
 
+Running-configuration prompts:
+
+```text
+Dump the running configuration of both BNG members and show the differences.
+```
+
+Expected tool: `bng_running_configs`
+
+```text
+Show the running CGNAT configuration on BNG member 0.
+```
+
+Expected tool: `bng_running_config` with `member=0` and `section=cgnat`
+
+The response must come from `/api/show/running-config`. Sensitive values must
+already be represented as `<redacted>` in the tool result; prompt instructions
+are not the security boundary.
+
 The agent must request confirmation before create or delete and must name the
 target session ID. Read-only status and traffic tests need no approval.
 

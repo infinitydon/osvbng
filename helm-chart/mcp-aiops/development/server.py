@@ -1,4 +1,6 @@
 import os
+from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any
 
 import httpx
@@ -78,6 +80,81 @@ async def _resolve_member(member: int | None) -> int:
     return await _active_member() if member is None else member
 
 
+SENSITIVE_CONFIG_KEYS = {
+    "api_key",
+    "apikey",
+    "authorization",
+    "credential",
+    "key",
+    "password",
+    "private_key",
+    "secret",
+    "token",
+}
+
+
+def _redact_config(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: (
+                "<redacted>"
+                if key.lower().replace("-", "_") in SENSITIVE_CONFIG_KEYS
+                else _redact_config(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_redact_config(item) for item in value]
+    return value
+
+
+def _config_section(config: dict[str, Any], section: str | None) -> Any:
+    if not section:
+        return config
+    current: Any = config
+    components = section.split(".")
+    while components:
+        if not isinstance(current, dict):
+            raise ValueError(f"running-config section not found: {section}")
+        matched = None
+        for count in range(len(components), 0, -1):
+            candidate = ".".join(components[:count])
+            if candidate in current:
+                matched = candidate
+                components = components[count:]
+                break
+        if matched is None:
+            raise ValueError(f"running-config section not found: {section}")
+        current = current[matched]
+    return current
+
+
+def _flatten_config(value: Any, prefix: str = "") -> dict[str, Any]:
+    if isinstance(value, dict):
+        flattened = {}
+        for key, item in value.items():
+            path = f"{prefix}.{key}" if prefix else key
+            flattened.update(_flatten_config(item, path))
+        return flattened
+    if isinstance(value, list):
+        flattened = {}
+        for index, item in enumerate(value):
+            flattened.update(_flatten_config(item, f"{prefix}[{index}]"))
+        return flattened
+    return {prefix: value}
+
+
+async def _running_config(member: int, section: str | None = None) -> dict[str, Any]:
+    response = await _request(member, "/api/show/running-config")
+    config = deepcopy(response["result"].get("data", {}))
+    return {
+        "member": member,
+        "source": "/api/show/running-config",
+        "section": section or "all",
+        "config": _config_section(_redact_config(config), section),
+    }
+
+
 async def _ue_request(
     path: str, method: str = "GET", payload: dict[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -148,6 +225,51 @@ async def cgnat_sessions(
 async def radius_servers(member: int = 0) -> dict[str, Any]:
     """Return osvbng RADIUS server health and request counters."""
     return await _request(member, "/api/show/aaa/radius/servers")
+
+
+@mcp.tool()
+async def bng_running_config(
+    member: int, section: str | None = None
+) -> dict[str, Any]:
+    """Dump the authoritative live configuration for one zero-based BNG StatefulSet member. Secrets are always redacted server-side. Optionally select a dotted section such as cgnat, ha, interfaces.core, aaa, or plugins.subscriber.auth.radius."""
+    result = await _running_config(member, section)
+    result["observed_at"] = datetime.now(timezone.utc).isoformat()
+    return result
+
+
+@mcp.tool()
+async def bng_running_configs(
+    section: str | None = None,
+) -> dict[str, Any]:
+    """Dump redacted live configurations for every BNG member and return exact leaf-level differences. Optionally select a dotted section."""
+    members = []
+    for member in range(MEMBER_COUNT):
+        try:
+            members.append(await _running_config(member, section))
+        except Exception as exc:
+            members.append({"member": member, "error": str(exc)})
+
+    successful = [item for item in members if "config" in item]
+    differences = []
+    if len(successful) >= 2:
+        baseline = _flatten_config(successful[0]["config"])
+        for compared in successful[1:]:
+            candidate = _flatten_config(compared["config"])
+            for path in sorted(set(baseline) | set(candidate)):
+                if baseline.get(path) != candidate.get(path):
+                    differences.append(
+                        {
+                            "path": path,
+                            f"member_{successful[0]['member']}": baseline.get(path),
+                            f"member_{compared['member']}": candidate.get(path),
+                        }
+                    )
+    return {
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "section": section or "all",
+        "members": members,
+        "differences": differences,
+    }
 
 
 @mcp.tool()

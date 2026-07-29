@@ -56,6 +56,59 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, result["member"])
         request.assert_awaited_once_with(1, "/api/show/cgnat/pools")
 
+    async def test_running_config_redacts_and_selects_dotted_key(self):
+        response = {
+            "result": {
+                "data": {
+                    "plugins": {
+                        "subscriber.auth.radius": {
+                            "servers": [
+                                {"host": "radius", "secret": "do-not-leak"}
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        with patch.object(
+            server, "_request", new=AsyncMock(return_value=response)
+        ):
+            result = await server.bng_running_config(
+                0, "plugins.subscriber.auth.radius"
+            )
+        self.assertEqual(
+            "<redacted>", result["config"]["servers"][0]["secret"]
+        )
+        self.assertNotIn("do-not-leak", str(result))
+
+    async def test_running_configs_returns_leaf_diff(self):
+        first = {
+            "result": {
+                "data": {
+                    "ha": {"node_id": "bng-a", "priority": 100},
+                    "password": "first",
+                }
+            }
+        }
+        second = {
+            "result": {
+                "data": {
+                    "ha": {"node_id": "bng-b", "priority": 90},
+                    "password": "second",
+                }
+            }
+        }
+        with patch.object(
+            server,
+            "_request",
+            new=AsyncMock(side_effect=[first, second]),
+        ):
+            result = await server.bng_running_configs()
+        paths = {item["path"] for item in result["differences"]}
+        self.assertEqual({"ha.node_id", "ha.priority"}, paths)
+        self.assertNotIn("first", str(result))
+        self.assertNotIn("second", str(result))
+
     async def test_mutation_disabled(self):
         with self.assertRaises(PermissionError):
             await server.ha_switchover(confirm=True)

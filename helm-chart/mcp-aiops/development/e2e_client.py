@@ -14,6 +14,8 @@ async def main(url: str, lifecycle: bool) -> None:
             names = sorted(tool.name for tool in tools.tools)
             required = {
                 "bng_health",
+                "bng_running_config",
+                "bng_running_configs",
                 "ha_status",
                 "ha_sync",
                 "subscriber_sessions",
@@ -35,6 +37,17 @@ async def main(url: str, lifecycle: bool) -> None:
                 raise RuntimeError(f"missing tools: {sorted(missing)}")
 
             health = await session.call_tool("bng_health", {})
+            running = await session.call_tool(
+                "bng_running_config",
+                {
+                    "member": 0,
+                    "section": "plugins.subscriber.auth.radius",
+                },
+            )
+            running_all = await session.call_tool(
+                "bng_running_configs",
+                {"section": "ha"},
+            )
             status = await session.call_tool("ha_status", {"member": 0})
             pools = await session.call_tool("cgnat_pools", {})
             mappings = await session.call_tool("cgnat_mappings", {})
@@ -51,6 +64,16 @@ async def main(url: str, lifecycle: bool) -> None:
             result = {
                 "tools": names,
                 "bng_health_error": health.isError,
+                "bng_running_config_error": running.isError,
+                "bng_running_configs_error": running_all.isError,
+                "bng_running_config_redacted": (
+                    "<redacted>" in json.dumps(running.structuredContent)
+                ),
+                "bng_running_config_diff_count": (
+                    len(running_all.structuredContent.get("differences", []))
+                    if running_all.structuredContent
+                    else None
+                ),
                 "ha_status_error": status.isError,
                 "cgnat_pools_error": pools.isError,
                 "cgnat_mappings_error": mappings.isError,

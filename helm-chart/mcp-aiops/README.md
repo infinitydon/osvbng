@@ -28,6 +28,8 @@ the packaged Helm artifact.
 The first release exposes:
 
 - `bng_health`
+- `bng_running_config`
+- `bng_running_configs`
 - `ha_status`
 - `ha_sync`
 - `subscriber_sessions`
@@ -46,6 +48,14 @@ The first release exposes:
 
 CGNAT tools query the current ACTIVE HA member automatically unless a
 zero-based StatefulSet member ordinal is supplied explicitly.
+
+`bng_running_config` dumps one member's authoritative live configuration.
+`bng_running_configs` dumps every member and returns leaf-level differences.
+Both tools redact passwords, shared secrets, tokens, credentials, API keys,
+private keys, and authorization values inside the MCP server before returning
+data to the model. Use the optional dotted `section` argument to limit output,
+for example `cgnat`, `ha`, `interfaces.core`, or
+`plugins.subscriber.auth.radius`.
 
 All operational reads return structured JSON from the selected StatefulSet
 member. `ha_switchover` is denied unless `osvbngMcp.allowMutations` is enabled
