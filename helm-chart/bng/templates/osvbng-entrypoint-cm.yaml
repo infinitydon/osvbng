@@ -161,7 +161,9 @@ data:
             printf '%s' "$RADIUS_SHARED_SECRET" | sed 's/[&|\\]/\\&/g'
         )"
         {{- end }}
+        OSVBNG_CORE_ROUTER_ID="${OSVBNG_CORE_ADDRESS%%/*}"
         sed -e "s|__CORE_ADDRESS__|${OSVBNG_CORE_ADDRESS}|g" \
+            -e "s|__CORE_ROUTER_ID__|${OSVBNG_CORE_ROUTER_ID}|g" \
             {{- if .Values.radius.enabled }}
             -e "s|__RADIUS_SHARED_SECRET__|${RADIUS_SHARED_SECRET_ESCAPED}|g" \
             {{- end }}
@@ -291,14 +293,17 @@ data:
     ln -sf /etc/osvbng/frr.conf /etc/frr/frr.conf
     
     echo "Starting routing daemons..."
-    /usr/lib/frr/frrinit.sh start
+    # The LCP core interface lives in this namespace, so routing daemons must
+    # open their protocol sockets there. UNIX VTY/ZAPI sockets remain
+    # accessible to osvbngd in the container mount namespace.
+    ip netns exec dataplane /usr/lib/frr/frrinit.sh start
     sleep 2
     
     echo "Making zebra API socket accessible..."
     chmod 660 /var/run/frr/zserv.api 2>/dev/null || true
     
     echo "Routing daemon status:"
-    /usr/lib/frr/frrinit.sh status || true
+    ip netns exec dataplane /usr/lib/frr/frrinit.sh status || true
     
     echo "Starting osvbng..."
     if [ "$USE_TASKSET" = true ] && [ -n "$OSVBNG_CP_CORES" ]; then

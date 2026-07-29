@@ -25,6 +25,8 @@ data:
   daemons: |
     zebra=yes
     staticd=yes
+    bgpd={{ ternary "yes" "no" $root.Values.bgp.enabled }}
+    bfdd={{ ternary "yes" "no" (and $root.Values.bgp.enabled $root.Values.bgp.bfd) }}
     vrrpd=no
   vtysh.conf: |
     service integrated-vtysh-config
@@ -36,7 +38,26 @@ data:
     log stdout informational
     ip forwarding
     ip route 0.0.0.0/0 {{ $root.Values.upstream.gateway }} 10
-    ip route {{ $root.Values.cgnat.prefix }} {{ (index $root.Values.bng.members 0).address }} 20
+    {{- if $root.Values.bgp.enabled }}
+    router bgp {{ $root.Values.bgp.localAs }}
+     bgp router-id {{ regexReplaceAll "/.*" $member.core.address "" }}
+     no bgp ebgp-requires-policy
+     no bgp default ipv4-unicast
+    {{- range $neighbor := $root.Values.bgp.bngNeighbors }}
+     neighbor {{ $neighbor.address }} remote-as {{ $root.Values.bgp.peerAs }}
+     neighbor {{ $neighbor.address }} description {{ $neighbor.description }}
+     {{- if $root.Values.bgp.bfd }}
+     neighbor {{ $neighbor.address }} bfd
+     {{- end }}
+    {{- end }}
+     address-family ipv4 unicast
+    {{- range $neighbor := $root.Values.bgp.bngNeighbors }}
+      neighbor {{ $neighbor.address }} activate
+    {{- end }}
+     exit-address-family
+    {{- else }}
+    ip route {{ $root.Values.cgnat.prefix }} 172.31.255.2 20
+    {{- end }}
   keepalived.conf: |
     global_defs {
       router_id FRR_ISP_{{ upper $member.name }}
@@ -112,6 +133,7 @@ spec:
         app.kubernetes.io/component: router
         app.kubernetes.io/instance: {{ $member.name }}
       annotations:
+        checksum/config: {{ dict "member" $member "bgp" $root.Values.bgp "cgnat" $root.Values.cgnat "upstream" $root.Values.upstream "ha" $root.Values.ha | toJson | sha256sum }}
         k8s.v1.cni.cncf.io/networks: >-
           [{"name":{{ printf "%s-core-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"core"},
            {"name":{{ printf "%s-uplink-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"uplink"}]
@@ -132,6 +154,9 @@ spec:
               sysctl -w net.ipv4.conf.all.rp_filter=0
               sysctl -w net.ipv4.conf.core.rp_filter=0
               sysctl -w net.ipv4.conf.uplink.rp_filter=0
+              sysctl -w net.ipv4.conf.all.send_redirects=0
+              sysctl -w net.ipv4.conf.core.send_redirects=0
+              sysctl -w net.ipv4.conf.uplink.send_redirects=0
               sysctl -w net.ipv4.conf.uplink.proxy_arp=1
               ip route del default 2>/dev/null || true
               ip route replace default via {{ $root.Values.upstream.gateway }} dev uplink metric 10
@@ -147,22 +172,6 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/frr
-        - name: active-bng-route
-          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}@{{ $root.Values.image.digest }}"
-          securityContext:
-            capabilities:
-              add: ["NET_ADMIN"]
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
-              while true; do
-                {{- range $bng := $root.Values.bng.members }}
-                if wget -qO- --timeout=2 {{ $bng.api }}/api/show/ha/status | grep -q '"state":"ACTIVE"'; then
-                  ip route replace {{ $root.Values.cgnat.prefix }} via {{ $bng.address }} dev core metric 20
-                fi
-                {{- end }}
-                sleep 2
-              done
         {{- if $root.Values.ha.enabled }}
         - name: keepalived
           image: {{ $root.Values.ha.keepalivedImage }}

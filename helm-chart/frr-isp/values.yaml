@@ -17,12 +17,18 @@ upstream:
 cgnat:
   prefix: 192.168.88.12/30
 
-bng:
-  members:
+bgp:
+  enabled: true
+  localAs: 65020
+  peerAs: 65010
+  # Enable after validating BFD timers against the virtual L2. Plain BGP is
+  # the interoperable default for this lab profile.
+  bfd: false
+  bngNeighbors:
     - address: 172.31.255.2
-      api: http://osvbng-0.osvbng-headless.osvbng-ha.svc.cluster.local:8080
+      description: OSVBNG-A
     - address: 172.31.255.3
-      api: http://osvbng-1.osvbng-headless.osvbng-ha.svc.cluster.local:8080
+      description: OSVBNG-B
 
 clusterServiceCidr: 10.152.183.0/24
 

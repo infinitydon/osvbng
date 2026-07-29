@@ -119,8 +119,26 @@ data:
         lcp: true
     protocols:
       bgp:
-        asn: 65000
-        router-id: 10.255.0.1
+        asn: {{ ternary .Values.osvbng.bgp.localAs 65000 .Values.osvbng.bgp.enabled }}
+        router-id: {{ ternary "__CORE_ROUTER_ID__" "10.255.0.1" .Values.osvbng.bgp.enabled }}
+        {{- if .Values.osvbng.bgp.enabled }}
+        neighbors:
+          {{- range .Values.osvbng.bgp.neighbors }}
+          {{ .address }}:
+            remote-as: {{ $.Values.osvbng.bgp.peerAs }}
+            description: {{ printf "FRR ISP %s" .name | quote }}
+            bfd: {{ $.Values.osvbng.bgp.bfd }}
+            ipv4-unicast: {}
+          {{- end }}
+        ipv4-unicast:
+          networks: {}
+        {{- end }}
+      {{- if and .Values.osvbng.bgp.enabled .Values.osvbng.bgp.cgnatPrefix }}
+      static:
+        ipv4:
+          - destination: {{ .Values.osvbng.bgp.cgnatPrefix }}
+            device: Null0
+      {{- end }}
     aaa:
       {{- if .Values.radius.enabled }}
       auth_provider: radius
