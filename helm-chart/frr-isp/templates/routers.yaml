@@ -37,7 +37,9 @@ data:
     service integrated-vtysh-config
     log stdout informational
     ip forwarding
+    {{- if not $root.Values.upstream.bgp.enabled }}
     ip route 0.0.0.0/0 {{ $root.Values.upstream.gateway }} 10
+    {{- end }}
     {{- if $root.Values.bgp.enabled }}
     {{- if $root.Values.upstream.bgp.enabled }}
     ip prefix-list MIKROTIK-IN seq 10 permit 0.0.0.0/0
@@ -181,7 +183,9 @@ spec:
               sysctl -w net.ipv4.conf.uplink.send_redirects=0
               sysctl -w net.ipv4.conf.uplink.proxy_arp=1
               ip route del default 2>/dev/null || true
+              {{- if not $root.Values.upstream.bgp.enabled }}
               ip route replace default via {{ $root.Values.upstream.gateway }} dev uplink metric 10
+              {{- end }}
               ip route replace {{ $root.Values.clusterServiceCidr }} via 169.254.1.1 dev eth0
       containers:
         - name: frr
