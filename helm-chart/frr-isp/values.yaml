@@ -13,9 +13,14 @@ ha:
 
 upstream:
   gateway: 192.168.88.1
+  bgp:
+    enabled: true
+    peerAs: 65030
+    neighbor: 192.168.88.1
+    bfd: false
 
 cgnat:
-  prefix: 192.168.88.12/30
+  prefix: 100.64.100.0/24
   # Used only by the non-BGP fallback route.
   staticNextHop: 172.31.255.2
 

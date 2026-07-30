@@ -39,6 +39,16 @@ data:
     ip forwarding
     ip route 0.0.0.0/0 {{ $root.Values.upstream.gateway }} 10
     {{- if $root.Values.bgp.enabled }}
+    {{- if $root.Values.upstream.bgp.enabled }}
+    ip prefix-list MIKROTIK-IN seq 10 permit 0.0.0.0/0
+    ip prefix-list MIKROTIK-OUT seq 10 permit {{ $root.Values.cgnat.prefix }}
+    route-map MIKROTIK-IN permit 10
+     match ip address prefix-list MIKROTIK-IN
+    route-map MIKROTIK-IN deny 100
+    route-map MIKROTIK-OUT permit 10
+     match ip address prefix-list MIKROTIK-OUT
+    route-map MIKROTIK-OUT deny 100
+    {{- end }}
     router bgp {{ $root.Values.bgp.localAs }}
      bgp router-id {{ regexReplaceAll "/.*" $member.core.address "" }}
      no bgp ebgp-requires-policy
@@ -50,9 +60,21 @@ data:
      neighbor {{ $neighbor.address }} bfd
      {{- end }}
     {{- end }}
+    {{- if $root.Values.upstream.bgp.enabled }}
+     neighbor {{ $root.Values.upstream.bgp.neighbor }} remote-as {{ $root.Values.upstream.bgp.peerAs }}
+     neighbor {{ $root.Values.upstream.bgp.neighbor }} description MikroTik-Upstream
+     {{- if $root.Values.upstream.bgp.bfd }}
+     neighbor {{ $root.Values.upstream.bgp.neighbor }} bfd
+     {{- end }}
+    {{- end }}
      address-family ipv4 unicast
     {{- range $neighbor := $root.Values.bgp.bngNeighbors }}
       neighbor {{ $neighbor.address }} activate
+    {{- end }}
+    {{- if $root.Values.upstream.bgp.enabled }}
+      neighbor {{ $root.Values.upstream.bgp.neighbor }} activate
+      neighbor {{ $root.Values.upstream.bgp.neighbor }} route-map MIKROTIK-IN in
+      neighbor {{ $root.Values.upstream.bgp.neighbor }} route-map MIKROTIK-OUT out
     {{- end }}
      exit-address-family
     {{- else }}

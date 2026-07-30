@@ -6,7 +6,7 @@ osvbng:
     enabled: true
     localAs: 65010
     peerAs: 65020
-    cgnatPrefix: 192.168.88.12/30
+    cgnatPrefix: 100.64.100.0/24
     bfd: false
     pollIntervalSeconds: 2
     neighbors:
@@ -17,10 +17,7 @@ osvbng:
   cgnat:
     proxyArp: false
     outsideAddresses:
-      - 192.168.88.12
-      - 192.168.88.13
-      - 192.168.88.14
-      - 192.168.88.15
+      - 100.64.100.0/24
   ha:
     members:
       - nodeId: bng-a
@@ -36,4 +33,4 @@ osvbng:
         - access
       networks:
         - prefix: 10.255.0.0/24
-        - prefix: 192.168.88.12/30
+        - prefix: 100.64.100.0/24

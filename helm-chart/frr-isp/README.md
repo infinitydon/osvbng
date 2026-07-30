@@ -11,13 +11,17 @@ switches suppress VRRP multicast between VirtIO ports:
 - FRR member core addresses: `172.31.255.4` and `.5`
 - upstream VIP: `192.168.88.249/24`
 - FRR member upstream addresses: `192.168.88.250` and `.251`
-- routed CGNAT pool: `192.168.88.12/30`
+- routed lab CGNAT pool: `100.64.100.0/24`
 
 The default routing profile uses eBGP:
 
 - OSVBNG ASN: `65010`
 - ISP FRR ASN: `65020`
+- MikroTik ASN: `65030`
 - every BNG peers with both ISP routers
+- both ISP routers peer with the MikroTik at `192.168.88.1`
+- the MikroTik advertises only the default route to the ISP routers
+- the ISP routers advertise only the routed CGNAT prefix to the MikroTik
 - only the BNG whose SRG is active originates the subscriber and CGNAT
   prefixes
 - both ISP routers retain the learned route, independently of which router
@@ -76,8 +80,8 @@ kubectl get pods -n osvbng-ha -l app.kubernetes.io/name=osvbng-frr-isp -o wide
 kubectl exec -n osvbng-ha deploy/osvbng-frr-isp-a -c frr -- ip address
 kubectl exec -n osvbng-ha deploy/osvbng-frr-isp-a -c frr -- \
   vtysh -c "show bgp ipv4 unicast summary" \
-        -c "show bgp ipv4 unicast 192.168.88.12/30" \
-        -c "show ip route 192.168.88.12/30"
+        -c "show bgp ipv4 unicast 100.64.100.0/24" \
+        -c "show ip route 100.64.100.0/24"
 
 kubectl exec -n osvbng-ha osvbng-0 -c osvbng -- \
   vtysh -c "show bgp ipv4 unicast summary"
