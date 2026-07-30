@@ -32,6 +32,11 @@ The BNG profile applies an explicit `OSVBNG-EXPORT` route policy to its eBGP
 neighbors. Production deployments should narrow that policy with prefix sets
 for the exact subscriber and CGNAT allocations.
 
+When `bgp.enabled` is `false`, the chart installs a static fallback route for
+`cgnat.prefix` through `cgnat.staticNextHop`. Set the next hop to the core
+address of the BNG that should receive traffic in non-BGP mode. This fallback
+does not provide automatic BNG failover.
+
 `bng-values.yaml` is an integration values file for the separate `bng` Helm
 release. It moves the BNG core interfaces to the transit subnet, enables the
 BGP peers, disables proxy ARP, and keeps the CGNAT addresses in the routed

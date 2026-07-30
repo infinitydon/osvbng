@@ -16,6 +16,8 @@ upstream:
 
 cgnat:
   prefix: 192.168.88.12/30
+  # Used only by the non-BGP fallback route.
+  staticNextHop: 172.31.255.2
 
 bgp:
   enabled: true

@@ -56,7 +56,7 @@ data:
     {{- end }}
      exit-address-family
     {{- else }}
-    ip route {{ $root.Values.cgnat.prefix }} 172.31.255.2 20
+    ip route {{ $root.Values.cgnat.prefix }} {{ required "cgnat.staticNextHop is required when BGP is disabled" $root.Values.cgnat.staticNextHop }} 20
     {{- end }}
   keepalived.conf: |
     global_defs {
