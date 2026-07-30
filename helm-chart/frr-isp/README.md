@@ -3,6 +3,9 @@
 See [MIKROTIK.md](MIKROTIK.md) for the RouterOS 7.23.1 upstream BGP,
 firewall, NAT, validation, and removal commands.
 
+See [NODE-NETPLAN.md](NODE-NETPLAN.md) for the persistent node parent-link
+configuration required by the Multus macvlan attachments.
+
 This optional chart proves that the CGNAT pool does not need to share the
 OSVBNG core subnet. It provides an FRR 10.7.0 ISP edge with VirtIO-backed
 Multus macvlan interfaces.

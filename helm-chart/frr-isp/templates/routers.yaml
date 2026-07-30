@@ -106,40 +106,6 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ printf "%s-parent-%s" (include "frr.fullname" $root) $member.name }}
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: {{ include "frr.fullname" $root }}
-      app.kubernetes.io/component: parent-link
-      app.kubernetes.io/instance: {{ $member.name }}
-  template:
-    metadata:
-      labels:
-        app.kubernetes.io/name: {{ include "frr.fullname" $root }}
-        app.kubernetes.io/component: parent-link
-        app.kubernetes.io/instance: {{ $member.name }}
-    spec:
-      nodeName: {{ $member.nodeName }}
-      hostNetwork: true
-      containers:
-        - name: parent-link
-          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}@{{ $root.Values.image.digest }}"
-          securityContext:
-            privileged: true
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
-              ip link set {{ $member.core.parent }} up
-              ip link set {{ $member.uplink.parent }} up
-              exec sleep infinity
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: {{ printf "%s-%s" (include "frr.fullname" $root) $member.name }}
 spec:
   replicas: 1
