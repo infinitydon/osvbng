@@ -99,7 +99,6 @@ data:
       }
       virtual_ipaddress {
         {{ $root.Values.ha.coreVip }} dev core
-        {{ $root.Values.ha.uplinkVip }} dev uplink
       }
     }
 ---

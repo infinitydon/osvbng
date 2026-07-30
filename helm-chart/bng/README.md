@@ -84,7 +84,9 @@ helm upgrade --install osvbng ./helm-chart/bng \
   --timeout 10m
 ```
 
-The chart supports in-place transitions between two modes:
+The chart supports standalone and HA modes. A transition must apply the
+complete target profile because core addressing, next hop, CGNAT, and BGP
+change together:
 
 ```yaml
 # One BNG replica
@@ -98,22 +100,26 @@ osvbng:
 ```yaml
 # Two BNG replicas
 osvbng:
+  core:
+    nextHop: 172.31.255.1
   ha:
     enabled: true
     members:
       - nodeId: bng-a
-        coreAddress: 192.168.88.10/24
+        coreAddress: 172.31.255.2/29
         priority: 100
         preempt: false
       - nodeId: bng-b
-        coreAddress: 192.168.88.11/24
+        coreAddress: 172.31.255.3/29
         priority: 90
         preempt: false
 ```
 
 `standalone.coreAddress` is required only when HA is disabled. HA member
 addresses are explicit, independent, and do not need to be consecutive.
-Use `examples/standalone-values.yaml` or `examples/ha-values.yaml`.
+Use `examples/standalone-values.yaml` for the intentional direct-L2
+`192.168.88.x` design or `examples/ha-values.yaml` for the current routed
+FRR/BGP design.
 
 BNG Blaster runs as a post-install validation Job. It succeeds after all
 configured sessions receive DHCP ACKs, then terminates and leaves its logs as
@@ -152,7 +158,7 @@ The chart has an interactive traffic-test mode containing:
   is exposed as `bbl<session-id>` in the shared Pod network namespace.
 - `ue-api`, an internal sidecar and ClusterIP service that controls the BNG
   Blaster Unix socket and runs per-session ping and curl tests.
-- Direct core egress from osvbng at `192.168.88.10/24` to gateway
+- In standalone mode, direct core egress from osvbng at `192.168.88.10/24` to gateway
   `192.168.88.1`. Subscriber traffic does not traverse Calico or a Kubernetes
   forwarding pod.
 
@@ -237,21 +243,27 @@ The default test subscriber uses S-VLAN 100 and C-VLAN 100. Change
 `trafficTest.outerVlan` and `trafficTest.innerVlan` when those identifiers
 are already allocated.
 
-## Two-node HA lab
+## Two-node routed HA lab
 
 The tested HA allocation is:
 
-- BNG A identity: `osvbng-0`, core `192.168.88.10/24`
-- BNG B identity: `osvbng-1`, core `192.168.88.11/24`
-- shared PBA CGNAT pool: `192.168.88.12-15`
+- BNG A identity: `osvbng-0`, core `172.31.255.2/29`
+- BNG B identity: `osvbng-1`, core `172.31.255.3/29`
+- shared FRR next hop: `172.31.255.1`
+- FRR member core addresses: `172.31.255.4` and `.5`
+- routed PBA CGNAT pool: `100.64.100.0/24`
+- FRR upstream addresses: `192.168.88.250` and `.251`
+- MikroTik upstream: `192.168.88.1`
 - virtual MAC: `02:00:5e:00:01:01`
 
-Install one release containing a two-replica StatefulSet:
+Install the FRR release and the two-replica BNG StatefulSet:
 
 ```shell
 kubectl create namespace osvbng-ha
+helm upgrade --install osvbng-frr-isp ./helm-chart/frr-isp \
+  -n osvbng-ha --wait --timeout 10m
 helm upgrade --install osvbng ./helm-chart/bng -n osvbng-ha \
-  -f helm-chart/bng/examples/ha-values.yaml --wait --timeout 10m
+  -f helm-chart/frr-isp/bng-values.yaml --wait --timeout 10m
 ```
 
 The member list explicitly binds addresses to StatefulSet identity:
@@ -259,11 +271,11 @@ The member list explicitly binds addresses to StatefulSet identity:
 ```yaml
 members:
   - nodeId: bng-a
-    coreAddress: 192.168.88.10/24
+    coreAddress: 172.31.255.2/29
     priority: 100
     preempt: false
   - nodeId: bng-b
-    coreAddress: 192.168.88.11/24
+    coreAddress: 172.31.255.3/29
     priority: 90
     preempt: false
 ```
@@ -310,18 +322,18 @@ The lab NAT and exit flow is:
 ```text
 UE 10.255.0.2
   -> active osvbng SRG
-  -> PBA CGNAT 192.168.88.12-15
-  -> active worker's DPDK core (.10 on A or .11 on B)
-  -> gateway 192.168.88.1
-  -> worker/site upstream network
+  -> PBA CGNAT 100.64.100.0/24
+  -> BNG DPDK core 172.31.255.2 or .3
+  -> shared FRR next hop 172.31.255.1
+  -> FRR member 192.168.88.250 or .251
+  -> MikroTik 192.168.88.1
   -> Internet
 ```
 
-In the v0.16.0 test, ping and curl survived graceful switchover and removal of
-either BNG pod. After takeover, B continued forwarding the synchronized flow
-while its `subscriber.sessions` and `cgnat.mappings` show handlers returned an
-empty result. Use traffic probes and HA status in addition to those dumps when
-validating this release.
+In the v0.16.0 test, ping and curl survive a graceful API switchover. Hard
+failure is different: the survivor can remain `STANDBY_ALONE` and requires
+the documented forced-promotion/fencing procedure. Use traffic probes, HA
+status, BGP routes, and CGNAT state together when validating takeover.
 
 ## RADIUS
 

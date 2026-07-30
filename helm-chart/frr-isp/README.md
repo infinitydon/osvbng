@@ -15,7 +15,6 @@ switches suppress VRRP multicast between VirtIO ports:
 
 - BNG-facing VIP: `172.31.255.1/29`
 - FRR member core addresses: `172.31.255.4` and `.5`
-- upstream VIP: `192.168.88.249/24`
 - FRR member upstream addresses: `192.168.88.250` and `.251`
 - routed lab CGNAT pool: `100.64.100.0/24`
 
@@ -38,6 +37,10 @@ Both FRR pods use required node affinity for
 This is the same eligible worker pool used by the BNG StatefulSet. Both core
 and upstream macvlan attachments use the single `enp8s19` parent; there is no
 `nodeName` pinning.
+
+There is no upstream VRRP VIP. MikroTik peers with and installs ECMP paths
+through the two member addresses (`.250` and `.251`). Keepalived owns only
+the BNG-facing core next hop, `172.31.255.1`.
 
 OSVBNG 0.16 natively associates the prefixes under
 `ha.srgs.default.networks` with SRG state. It originates those prefixes while

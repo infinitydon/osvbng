@@ -1,4 +1,4 @@
-{{- if .Values.multus.enabled }}
+{{- if and .Values.multus.enabled .Values.bngblaster.enabled }}
 ---
 apiVersion: k8s.cni.cncf.io/v1
 kind: NetworkAttachmentDefinition

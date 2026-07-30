@@ -19,6 +19,8 @@ osvbng:
     matchLabels:
       osvbng.infinitydon.com/bng-frr-ha: "true"
   standalone:
+    # Direct-L2 profile. The routed HA examples override core addressing,
+    # next hop, CGNAT pool, and BGP together.
     coreAddress: "192.168.88.10/24"
   core:
     nextHop: "192.168.88.1"
@@ -51,6 +53,8 @@ osvbng:
   ha:
     enabled: false
     listenAddress: "0.0.0.0:50051"
+    # Direct-L2 fallback members. Use examples/ha-values.yaml or the FRR
+    # integration profile for the current routed HA design.
     # Addresses are explicit and tied to StatefulSet identity, not calculated.
     members:
       - nodeId: bng-a

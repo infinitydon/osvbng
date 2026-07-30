@@ -1,29 +1,50 @@
 osvbng:
+  core:
+    nextHop: 172.31.255.1
+  bgp:
+    enabled: true
+    localAs: 65010
+    peerAs: 65020
+    cgnatPrefix: 100.64.100.0/24
+    bfd: false
+    neighbors:
+      - name: frr-a
+        address: 172.31.255.4
+      - name: frr-b
+        address: 172.31.255.5
   cgnat:
+    proxyArp: false
     outsideAddresses:
-      - 192.168.88.12
-      - 192.168.88.13
-      - 192.168.88.14
-      - 192.168.88.15
+      - 100.64.100.0/24
   ha:
     enabled: true
     members:
       - nodeId: bng-a
-        coreAddress: 192.168.88.10/24
+        coreAddress: 172.31.255.2/29
         priority: 100
         preempt: false
       - nodeId: bng-b
-        coreAddress: 192.168.88.11/24
+        coreAddress: 172.31.255.3/29
         priority: 90
         preempt: false
+    srg:
+      interfaces:
+        - access
+      networks:
+        - prefix: 10.255.0.0/24
+        - prefix: 100.64.100.0/24
 
 bngblaster:
   enabled: false
+  sessions: 20
 
 trafficTest:
   enabled: true
+  sessionCapacity: 20
   imagePullSecrets:
     - name: ghcr-pull
-  nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01
 
+radius:
+  enabled: true
+  existingSecret: osvbng-radius
+  autoProvisionTrafficTestUsers: true
