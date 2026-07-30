@@ -34,9 +34,9 @@ and driver—not PCI addresses—and advertises the single resource
 
 ```shell
 kubectl label node ebpf-bng-node-01 \
-  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+  osvbng.infinitydon.com/bng-frr-ha=true --overwrite
 kubectl label node ebpf-bng-node-02 \
-  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+  osvbng.infinitydon.com/bng-frr-ha=true --overwrite
 kubectl apply -k helm-chart/bng/sriov-device-plugin
 kubectl rollout status -n kube-system \
   daemonset/osvbng-sriov-device-plugin
@@ -275,7 +275,7 @@ both replicas from sharing a worker. Stable peer addresses come from the
 `osvbng-headless` Service.
 
 Required node affinity selects workers labeled
-`osvbng.infinitydon.com/dpdk-ha=true`. This is the same worker-pool label used
+`osvbng.infinitydon.com/bng-frr-ha=true`. This is the same worker-pool label used
 by the FRR chart; neither chart pins pods with `nodeName`.
 
 The example includes one independent interactive UE Deployment; it is not

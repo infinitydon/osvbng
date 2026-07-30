@@ -19,6 +19,7 @@ osvbng:
     outsideAddresses:
       - 100.64.100.0/24
   ha:
+    enabled: true
     members:
       - nodeId: bng-a
         coreAddress: 172.31.255.2/29
@@ -34,3 +35,18 @@ osvbng:
       networks:
         - prefix: 10.255.0.0/24
         - prefix: 100.64.100.0/24
+
+bngblaster:
+  enabled: false
+  sessions: 20
+
+trafficTest:
+  enabled: true
+  sessionCapacity: 20
+  imagePullSecrets:
+    - name: ghcr-pull
+
+radius:
+  enabled: true
+  existingSecret: osvbng-radius
+  autoProvisionTrafficTestUsers: true

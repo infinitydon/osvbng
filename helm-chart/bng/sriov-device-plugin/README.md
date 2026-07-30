@@ -9,9 +9,9 @@ driver `vfio-pci`. PCI addresses are intentionally not configured.
 
 ```shell
 kubectl label node ebpf-bng-node-01 \
-  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+  osvbng.infinitydon.com/bng-frr-ha=true --overwrite
 kubectl label node ebpf-bng-node-02 \
-  osvbng.infinitydon.com/dpdk-ha=true --overwrite
+  osvbng.infinitydon.com/bng-frr-ha=true --overwrite
 kubectl apply -k helm-chart/sriov-device-plugin
 kubectl rollout status -n kube-system \
   daemonset/osvbng-sriov-device-plugin

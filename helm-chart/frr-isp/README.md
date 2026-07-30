@@ -34,7 +34,7 @@ The default routing profile uses eBGP:
   currently owns the VRRP VIP
 
 Both FRR pods use required node affinity for
-`osvbng.infinitydon.com/dpdk-ha=true` and required hostname anti-affinity.
+`osvbng.infinitydon.com/bng-frr-ha=true` and required hostname anti-affinity.
 This is the same eligible worker pool used by the BNG StatefulSet. Both core
 and upstream macvlan attachments use the single `enp8s19` parent; there is no
 `nodeName` pinning.

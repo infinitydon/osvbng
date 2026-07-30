@@ -40,7 +40,7 @@ The default FRR placement uses:
 
 | Workload | Eligible nodes | Core parent | Upstream parent |
 |---|---|---|---|
-| FRR-A and FRR-B | Workers labeled `osvbng.infinitydon.com/dpdk-ha=true` | `enp8s19` | `enp8s19` |
+| FRR-A and FRR-B | Workers labeled `osvbng.infinitydon.com/bng-frr-ha=true` | `enp8s19` | `enp8s19` |
 
 Both macvlan attachments use the same parent because the lab VirtIO NICs
 share one L2 domain. Required node affinity selects the same worker pool as

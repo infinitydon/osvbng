@@ -17,7 +17,7 @@ osvbng:
     hugepages1Gi: "2Gi"
   nodeAffinity:
     matchLabels:
-      osvbng.infinitydon.com/dpdk-ha: "true"
+      osvbng.infinitydon.com/bng-frr-ha: "true"
   standalone:
     coreAddress: "192.168.88.10/24"
   core:

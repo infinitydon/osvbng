@@ -41,7 +41,7 @@ clusterServiceCidr: 10.152.183.0/24
 
 nodeAffinity:
   matchLabels:
-    osvbng.infinitydon.com/dpdk-ha: "true"
+    osvbng.infinitydon.com/bng-frr-ha: "true"
 
 macvlan:
   parent: enp8s19
