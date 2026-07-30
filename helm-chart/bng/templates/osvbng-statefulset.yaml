@@ -26,10 +26,18 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      nodeSelector:
-        {{- toYaml .Values.osvbng.nodeSelector | nindent 8 }}
-      {{- if .Values.osvbng.ha.enabled }}
       affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                {{- range $key, $value := .Values.osvbng.nodeAffinity.matchLabels }}
+                  - key: {{ $key }}
+                    operator: In
+                    values:
+                      - {{ $value | quote }}
+                {{- end }}
+      {{- if .Values.osvbng.ha.enabled }}
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:

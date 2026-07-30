@@ -274,6 +274,10 @@ eligible workers after a restart. Required hostname anti-affinity prevents
 both replicas from sharing a worker. Stable peer addresses come from the
 `osvbng-headless` Service.
 
+Required node affinity selects workers labeled
+`osvbng.infinitydon.com/dpdk-ha=true`. This is the same worker-pool label used
+by the FRR chart; neither chart pins pods with `nodeName`.
+
 The example includes one independent interactive UE Deployment; it is not
 replicated with the StatefulSet. Copy `ghcr-pull` into `osvbng-ha` first when
 the BNG Blaster image requires authentication.

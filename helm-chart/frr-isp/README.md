@@ -33,6 +33,12 @@ The default routing profile uses eBGP:
 - both ISP routers retain the learned route, independently of which router
   currently owns the VRRP VIP
 
+Both FRR pods use required node affinity for
+`osvbng.infinitydon.com/dpdk-ha=true` and required hostname anti-affinity.
+This is the same eligible worker pool used by the BNG StatefulSet. Both core
+and upstream macvlan attachments use the single `enp8s19` parent; there is no
+`nodeName` pinning.
+
 OSVBNG 0.16 natively associates the prefixes under
 `ha.srgs.default.networks` with SRG state. It originates those prefixes while
 the SRG is `ACTIVE` or `ACTIVE_SOLO` and withdraws them in standby states.

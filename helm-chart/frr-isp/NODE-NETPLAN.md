@@ -38,10 +38,14 @@ standard name. The deployed file is:
 
 The default FRR placement uses:
 
-| FRR | Node | Core parent | Upstream parent |
+| Workload | Eligible nodes | Core parent | Upstream parent |
 |---|---|---|---|
-| A | `ebpf-bng-node-01` | `enp8s19` | `enp8s20` |
-| B | `ebpf-bng-node-02` | `enp8s19` | `enp8s20` |
+| FRR-A and FRR-B | Workers labeled `osvbng.infinitydon.com/dpdk-ha=true` | `enp8s19` | `enp8s19` |
+
+Both macvlan attachments use the same parent because the lab VirtIO NICs
+share one L2 domain. Required node affinity selects the same worker pool as
+the BNG StatefulSet, while required hostname anti-affinity spreads the two
+FRR pods across different workers. The chart does not use `nodeName`.
 
 ## Netplan pattern
 

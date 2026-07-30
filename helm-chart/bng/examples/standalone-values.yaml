@@ -1,6 +1,7 @@
 osvbng:
-  nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01
+  nodeAffinity:
+    matchLabels:
+      osvbng.infinitydon.com/dpdk-ha: "true"
   standalone:
     coreAddress: 192.168.88.10/24
   cgnat:
@@ -22,4 +23,3 @@ trafficTest:
     - name: ghcr-pull
   nodeSelector:
     kubernetes.io/hostname: ebpf-bng-node-01
-

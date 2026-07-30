@@ -15,8 +15,9 @@ osvbng:
     cpu: "6"
     memory: "6Gi"
     hugepages1Gi: "2Gi"
-  nodeSelector:
-    osvbng.infinitydon.com/dpdk-ha: "true"
+  nodeAffinity:
+    matchLabels:
+      osvbng.infinitydon.com/dpdk-ha: "true"
   standalone:
     coreAddress: "192.168.88.10/24"
   core:
