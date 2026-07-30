@@ -1,78 +1,83 @@
-# FRR node Netplan prerequisites
+# Worker VirtIO interface naming
 
-The FRR chart creates macvlan interfaces on existing node VirtIO interfaces.
-The parent interfaces must therefore be configured and brought up by the
-node operating system before Helm installs the FRR pods. The chart does not
-deploy privileged helper pods to change host links.
+The three workers use one persistent naming convention for auxiliary
+kernel-bound VirtIO NICs:
 
-The current lab mapping is:
+| VirtIO ordinal | Kernel name |
+|---|---|
+| `virtio4` | `enp8s19` |
+| `virtio5` | `enp8s20` |
+| `virtio6` | `enp8s21` |
+| `virtio7` | `enp8s22` |
+| `virtio8` | `enp8s23` |
+| `virtio9` | `enp8s24` |
+| `virtio10` | `enp8s25` |
+
+Management remains `eth0` on every worker. Devices bound to `vfio-pci` do
+not have kernel interface names and are not modified by this configuration.
+The Kubernetes control-plane node is outside the scope of this convention.
+
+Netplan matches each interface by its unique MAC address and then assigns the
+standard name. The deployed file is:
+
+```text
+/etc/netplan/99-virtio-kernel-names.yaml
+```
+
+## Worker inventory
+
+| Interface | node-01 MAC | node-02 MAC | node-03 MAC |
+|---|---|---|---|
+| `enp8s19` | `bc:24:11:7b:c7:69` | `bc:24:11:8e:ae:de` | `bc:24:11:c7:18:62` |
+| `enp8s20` | `bc:24:11:8a:d7:92` | `bc:24:11:95:80:f4` | `bc:24:11:41:3d:9c` |
+| `enp8s21` | `bc:24:11:f5:df:50` | `bc:24:11:da:71:96` | `bc:24:11:98:3a:3c` |
+| `enp8s22` | `bc:24:11:8b:cc:81` | `bc:24:11:6e:23:c6` | `bc:24:11:ed:af:5b` |
+| `enp8s23` | `bc:24:11:82:09:4a` | `bc:24:11:aa:af:fc` | `bc:24:11:07:17:0f` |
+| `enp8s24` | `bc:24:11:9c:d9:e5` | `bc:24:11:bb:ac:d0` | `bc:24:11:b6:d4:d8` |
+| `enp8s25` | `bc:24:11:75:42:a8` | `bc:24:11:da:b5:c7` | `bc:24:11:b5:ad:bc` |
+
+The default FRR placement uses:
 
 | FRR | Node | Core parent | Upstream parent |
 |---|---|---|---|
-| A | `ebpf-bng-node-03-ubuntu-focal` | `enp6s19` | `enp7s2` |
-| B | `ebpf-bng-cp-01` | `ens19` | `eth0` |
+| A | `ebpf-bng-node-01` | `enp8s19` | `enp8s20` |
+| B | `ebpf-bng-node-02` | `enp8s19` | `enp8s20` |
 
-`eth0` on the control-plane node is also its DHCP-configured management
-interface. Do not replace its existing Netplan definition.
+## Netplan pattern
 
-## FRR-A node
-
-The relevant parts of `/etc/netplan/99-rename-interfaces.yaml` are:
+Each worker has the same logical structure with node-specific MAC addresses:
 
 ```yaml
 network:
   version: 2
   renderer: networkd
   ethernets:
-    enp6s19:
-      dhcp4: false
-      dhcp6: false
-      optional: true
-    enp7s2:
+    enp8s19:
+      match:
+        macaddress: "NODE-SPECIFIC-MAC"
+      set-name: enp8s19
       dhcp4: false
       dhcp6: false
       optional: true
 ```
 
-The deployed node file also declares the other unused VirtIO interfaces
-without addresses. It intentionally preserves their kernel interface names;
-renaming either FRR parent requires updating `members[].core.parent` or
-`members[].uplink.parent` in `values.yaml`.
+The same structure is repeated through `enp8s25`. Existing files were backed
+up before the unified configuration was installed.
 
-## FRR-B node
+## Validation
 
-`/etc/netplan/interface.yaml` already contains:
-
-```yaml
-network:
-  version: 2
-  ethernets:
-    ens19:
-      dhcp4: false
-```
-
-The existing cloud-init Netplan file manages `eth0` with DHCP.
-
-## Apply and validate
-
-Back up any existing file before editing it. Use restrictive permissions,
-generate the configuration, and reconfigure only the dedicated parent:
+Run on each worker:
 
 ```shell
-sudo chmod 600 /etc/netplan/*.yaml
 sudo netplan generate
-sudo networkctl reload
-sudo networkctl reconfigure enp6s19 enp7s2  # FRR-A node
-sudo networkctl reconfigure ens19           # FRR-B node
+ip -br link show | grep -E 'eth0|enp8s(19|20|21|22|23|24|25)'
 ```
 
-Validate the parents before installing the chart:
+Expected results:
 
-```shell
-ip -br link show enp6s19
-ip -br link show enp7s2
-ip -br link show ens19
-```
-
-Run only the commands for interfaces that exist on the current node. Each
-required parent must report `UP`.
+- `eth0` retains the node management address.
+- Exactly `enp8s19` through `enp8s25` are present and `UP`.
+- Old names such as `ens19`, `enp6s19`, `enp7s2`, `enp9s1`, and `enp1s1`
+  are absent.
+- VFIO-bound devices remain advertised through
+  `qemu-virtio-dpdk.dev/osvbng_vfio` on node-01 and node-02.

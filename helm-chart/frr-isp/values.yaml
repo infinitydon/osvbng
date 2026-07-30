@@ -41,24 +41,24 @@ clusterServiceCidr: 10.152.183.0/24
 
 members:
   - name: a
-    nodeName: ebpf-bng-node-03-ubuntu-focal
+    nodeName: ebpf-bng-node-01
     priority: 150
     peerCoreAddress: 172.31.255.5
     core:
-      parent: enp6s19
+      parent: enp8s19
       address: 172.31.255.4/29
     uplink:
-      parent: enp7s2
+      parent: enp8s20
       address: 192.168.88.250/24
   - name: b
-    nodeName: ebpf-bng-cp-01
+    nodeName: ebpf-bng-node-02
     priority: 100
     peerCoreAddress: 172.31.255.4
     core:
-      parent: ens19
+      parent: enp8s19
       address: 172.31.255.5/29
     uplink:
-      parent: eth0
+      parent: enp8s20
       address: 192.168.88.251/24
 
 resources:
