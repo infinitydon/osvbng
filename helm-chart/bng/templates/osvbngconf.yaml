@@ -93,9 +93,14 @@ data:
           interfaces:
             {{- toYaml .Values.osvbng.ha.srg.interfaces | nindent 12 }}
           track_priority_decrement: {{ .Values.osvbng.ha.srg.trackPriorityDecrement }}
-          {{- with .Values.osvbng.ha.srg.networks }}
+          {{- if or .Values.osvbng.bgp.advertiseSubscriberPrefix .Values.osvbng.ha.srg.networks }}
           networks:
+            {{- if .Values.osvbng.bgp.advertiseSubscriberPrefix }}
+            - prefix: {{ .Values.osvbng.cgnat.insideNetwork }}
+            {{- end }}
+            {{- with .Values.osvbng.ha.srg.networks }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
     {{- end }}
     interfaces:
@@ -147,6 +152,17 @@ data:
         DEFAULT-ONLY:
           - prefix: 0.0.0.0/0
             action: permit
+        {{- if or .Values.osvbng.bgp.cgnatPrefix .Values.osvbng.bgp.advertiseSubscriberPrefix }}
+        OSVBNG-EXPORT-ALLOWED:
+          {{- if .Values.osvbng.bgp.cgnatPrefix }}
+          - prefix: {{ .Values.osvbng.bgp.cgnatPrefix }}
+            action: permit
+          {{- end }}
+          {{- if .Values.osvbng.bgp.advertiseSubscriberPrefix }}
+          - prefix: {{ .Values.osvbng.cgnat.insideNetwork }}
+            action: permit
+          {{- end }}
+        {{- end }}
       route-policies:
         OSVBNG-IMPORT-DEFAULT:
           - sequence: 10
@@ -156,8 +172,14 @@ data:
           - sequence: 100
             action: deny
         OSVBNG-EXPORT:
+          {{- if or .Values.osvbng.bgp.cgnatPrefix .Values.osvbng.bgp.advertiseSubscriberPrefix }}
           - sequence: 10
             action: permit
+            match:
+              prefix-set: OSVBNG-EXPORT-ALLOWED
+          {{- end }}
+          - sequence: 100
+            action: deny
     {{- end }}
     aaa:
       {{- if .Values.radius.enabled }}

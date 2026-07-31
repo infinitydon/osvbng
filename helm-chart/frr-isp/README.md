@@ -50,6 +50,9 @@ The ISP routers do not query the Kubernetes or OSVBNG APIs.
 The BNG profile applies `OSVBNG-IMPORT-DEFAULT` to accept only the default
 route and `OSVBNG-EXPORT` to its eBGP neighbors. Production deployments should
 also narrow the export policy to the exact subscriber and CGNAT allocations.
+The integration profile sets `osvbng.bgp.advertiseSubscriberPrefix: false`,
+so FRR learns only the routed CGNAT pool. Set it to `true` only when the private
+subscriber pool must be reachable as a non-NAT routed service.
 
 When `bgp.enabled` is `false`, the chart installs a static fallback route for
 `cgnat.prefix` through `cgnat.staticNextHop`. Set the next hop to the core

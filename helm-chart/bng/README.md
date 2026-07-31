@@ -286,6 +286,10 @@ eligible workers after a restart. Required hostname anti-affinity prevents
 both replicas from sharing a worker. Stable peer addresses come from the
 `osvbng-headless` Service.
 
+`osvbng.bgp.advertiseSubscriberPrefix` defaults to `false`. In the CGNAT
+profile this keeps `10.255.0.0/24` private while the SRG advertises only
+`100.64.100.0/24`. Enable it only for a routed, non-NAT subscriber service.
+
 Required node affinity selects workers labeled
 `osvbng.infinitydon.com/bng-frr-ha=true`. This is the same worker-pool label used
 by the FRR chart; neither chart pins pods with `nodeName`.

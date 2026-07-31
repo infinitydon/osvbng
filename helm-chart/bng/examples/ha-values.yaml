@@ -3,6 +3,7 @@ osvbng:
     installDefaultRoute: false
   bgp:
     enabled: true
+    advertiseSubscriberPrefix: false
     localAs: 65010
     peerAs: 65020
     cgnatPrefix: 100.64.100.0/24
@@ -31,7 +32,6 @@ osvbng:
       interfaces:
         - access
       networks:
-        - prefix: 10.255.0.0/24
         - prefix: 100.64.100.0/24
 
 bngblaster:

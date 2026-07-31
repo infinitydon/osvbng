@@ -27,6 +27,9 @@ osvbng:
     installDefaultRoute: true
   bgp:
     enabled: false
+    # Advertise the private subscriber pool only for explicitly routed,
+    # non-CGNAT services. CGNAT Internet access needs only cgnatPrefix.
+    advertiseSubscriberPrefix: false
     localAs: 65010
     peerAs: 65020
     neighbors: []
