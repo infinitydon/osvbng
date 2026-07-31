@@ -304,7 +304,7 @@ Set the test request without displaying either credential:
 ```powershell
 $uri = 'http://<node-ip>:30080/v1/chat/completions'
 $body = @{
-  model = 'gpt-oss:20b'
+  model = 'qwen3.5:cloud'
   messages = @(@{
     role = 'user'
     content = 'Reply with exactly: OLLAMA VIA AGENTGATEWAY OK'
@@ -396,11 +396,11 @@ the nine tools documented in section 4.
 The model selector should contain the curated entry:
 
 ```text
-gpt-oss:20b - OSVBNG Operations
+qwen3.5:cloud - OSVBNG Operations
 ```
 
-Its base model is the upstream Ollama model `gpt-oss:20b`. The raw
-`gpt-oss:20b` and `gpt-oss:120b` entries are also available through Ollama
+Its base model is the upstream Ollama model `qwen3.5:cloud`. The raw
+`qwen3.5:cloud` and `gpt-oss:120b-cloud` entries are also available through Ollama
 Cloud. User-facing configuration uses these upstream names without a
 connection prefix.
 
@@ -441,8 +441,8 @@ a proposed mutating action, with its scope and impact stated.
 
 ### Short validated prompts
 
-Use these in a new chat with `gpt-oss:20b - OSVBNG Operations` selected. Do
-not select the raw `gpt-oss:20b` entry, which has no OSVBNG MCP attachment:
+Use these in a new chat with `qwen3.5:cloud - OSVBNG Operations` selected. Do
+not select the raw `qwen3.5:cloud` entry, which has no OSVBNG MCP attachment:
 
 ```text
 Show current BNG health.
