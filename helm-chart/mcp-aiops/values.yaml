@@ -99,6 +99,9 @@ kubernetesMcp:
   pullPolicy: IfNotPresent
   serviceAccountName: kubernetes-ops-mcp
   readOnly: true
+  # Allow inventory and diagnostics across all namespaces while server-side
+  # deniedResources continues to block Secrets and ServiceAccounts.
+  clusterWideReadOnly: true
   # Increment when the embedded operational guidance changes so ToolHive rolls the pod.
   guidanceVersion: "1"
   toolsets:

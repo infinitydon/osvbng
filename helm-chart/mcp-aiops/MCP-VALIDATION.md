@@ -164,8 +164,9 @@ kubectl logs -n osvbng-aiops kubernetes-ops-0 --tail=50
 ```
 
 Through `http://<node-ip>:30080/kubernetes/mcp`, call
-`pods_list_in_namespace` with `namespace=osvbng-ha` and `events_list` with the
-same namespace. Both must succeed. A `resources_get` call for `v1/Secret` must fail with
+`pods_list` to list pods across namespaces, `pods_list_in_namespace` with
+`namespace=osvbng-ha`, and `events_list` with the same namespace. All must
+succeed when `clusterWideReadOnly=true`. A `resources_get` call for `v1/Secret` must fail with
 `resource not allowed`, and the tool list must contain no Kubernetes create,
 update, delete, scale, exec, run, Helm install, or Helm uninstall tools.
 
@@ -405,10 +406,13 @@ Cloud. User-facing configuration uses these upstream names without a
 connection prefix.
 
 The curated model must have the `OSVBNG Operations` MCP server enabled in its
-model settings. Open WebUI persists this attachment as:
+model settings. For cluster-wide Kubernetes questions, it must also have the
+`Kubernetes Operations` server enabled. Open WebUI persists these attachments
+as:
 
 ```text
 server:mcp:osvbng-operations
+server:mcp:kubernetes-operations
 ```
 
 Its system prompt must route numbered UE ranges and current session-to-IP

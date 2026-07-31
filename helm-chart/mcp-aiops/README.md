@@ -85,6 +85,11 @@ inventory, and resource reads. The Helm toolset is supported upstream but is
 disabled here; upstream currently provides install, list, and uninstall but
 not upgrade or rollback.
 
+`kubernetesMcp.clusterWideReadOnly=true` permits inventory and diagnostics in
+all namespaces. It still publishes no mutation tools and server-side resource
+denials block Secrets and ServiceAccounts. Set it to `false` to restrict RBAC
+to `kubernetesMcp.targetNamespaces`.
+
 Controller ownership must be read from `metadata.ownerReferences`, never from
 name patterns. For a Deployment pod, the expected chain is
 `Pod -> ReplicaSet -> Deployment`; StatefulSets and DaemonSets normally own

@@ -38,6 +38,39 @@ metadata:
   name: {{ .Values.kubernetesMcp.serviceAccountName }}
   namespace: {{ .Release.Namespace }}
 ---
+{{- if .Values.kubernetesMcp.clusterWideReadOnly }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Namespace }}-{{ .Values.kubernetesMcp.serviceAccountName }}-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "events", "services", "endpoints", "configmaps", "persistentvolumeclaims", "persistentvolumes", "namespaces", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io", "gateway.networking.k8s.io", "autoscaling", "policy", "storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Namespace }}-{{ .Values.kubernetesMcp.serviceAccountName }}-reader
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.kubernetesMcp.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Namespace }}-{{ .Values.kubernetesMcp.serviceAccountName }}-reader
+---
+{{- else }}
 {{- range $namespace := .Values.kubernetesMcp.targetNamespaces }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -72,5 +105,6 @@ roleRef:
   kind: Role
   name: {{ $.Values.kubernetesMcp.serviceAccountName }}-reader
 ---
+{{- end }}
 {{- end }}
 {{- end }}
