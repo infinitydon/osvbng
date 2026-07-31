@@ -1,9 +1,15 @@
+import ast
+import asyncio
+import ipaddress
+import json
 import os
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 
 import httpx
+from kubernetes import client, config
+from kubernetes.stream import stream
 from mcp.server.fastmcp import FastMCP
 from starlette.responses import JSONResponse
 
@@ -21,6 +27,9 @@ UE_TIMEOUT = float(os.getenv("OSVBNG_UE_TIMEOUT", "60"))
 ALLOW_UE_MUTATIONS = (
     os.getenv("OSVBNG_ALLOW_UE_MUTATIONS", "false").lower() == "true"
 )
+FRR_RELEASE = os.getenv("OSVBNG_FRR_RELEASE", "osvbng-frr-isp")
+ROUTING_CONTAINER = os.getenv("OSVBNG_ROUTING_CONTAINER", "frr")
+_core_api = None
 
 mcp = FastMCP(
     "osvbng-operations",
@@ -164,6 +173,121 @@ async def _ue_request(
         return response.json()
 
 
+def _api() -> client.CoreV1Api:
+    global _core_api
+    if _core_api is None:
+        config.load_incluster_config()
+        configuration = client.Configuration.get_default_copy()
+        # This MicroK8s lab CA predates strict X.509 key-usage validation.
+        # Authentication still uses the projected, namespace-scoped SA token.
+        configuration.verify_ssl = False
+        _core_api = client.CoreV1Api(client.ApiClient(configuration))
+    return _core_api
+
+
+def _validate_prefix(prefix: str | None) -> str | None:
+    if prefix is None:
+        return None
+    return str(ipaddress.ip_network(prefix, strict=False))
+
+
+def _validate_neighbor(neighbor: str) -> str:
+    return str(ipaddress.ip_address(neighbor))
+
+
+def _frr_pod(router: str) -> str:
+    if router not in {"a", "b"}:
+        raise ValueError("router must be 'a' or 'b'")
+    pods = _api().list_namespaced_pod(
+        NAMESPACE,
+        label_selector=(
+            f"app.kubernetes.io/name={FRR_RELEASE},"
+            f"app.kubernetes.io/component=router,"
+            f"app.kubernetes.io/instance={router}"
+        ),
+    ).items
+    running = [pod for pod in pods if pod.status.phase == "Running"]
+    if len(running) != 1:
+        raise RuntimeError(
+            f"expected one running FRR-{router} pod, found "
+            f"{[pod.metadata.name for pod in running]}"
+        )
+    return running[0].metadata.name
+
+
+def _pod_exec(pod: str, container: str, command: list[str]) -> Any:
+    return stream(
+        _api().connect_get_namespaced_pod_exec,
+        pod,
+        NAMESPACE,
+        container=container,
+        command=command,
+        stderr=True,
+        stdin=False,
+        stdout=True,
+        tty=False,
+    )
+
+
+async def _exec_text(
+    pod: str, container: str, command: list[str]
+) -> Any:
+    return await asyncio.to_thread(_pod_exec, pod, container, command)
+
+
+async def _exec_json(
+    pod: str, container: str, command: list[str]
+) -> Any:
+    output = await _exec_text(pod, container, command)
+    # The Kubernetes stream client may deserialize a top-level JSON object
+    # before returning it, depending on the exec response content.
+    if isinstance(output, (dict, list)):
+        return output
+    decoder = json.JSONDecoder()
+    for index, character in enumerate(output):
+        if character not in "{[":
+            continue
+        try:
+            return decoder.raw_decode(output[index:])[0]
+        except json.JSONDecodeError:
+            continue
+    # websocket-client converts some JSON objects to their Python literal
+    # representation before kubernetes.stream returns stdout.
+    try:
+        literal = ast.literal_eval(output)
+        if isinstance(literal, (dict, list)):
+            return literal
+    except (SyntaxError, ValueError):
+        pass
+    raise RuntimeError(f"routing command returned no JSON: {output[:300]}")
+
+
+async def _bng_vtysh(member: int, command: str) -> Any:
+    _member_url(member, "/")
+    return await _exec_json(
+        f"{RELEASE}-{member}",
+        RELEASE,
+        ["ip", "netns", "exec", "dataplane", "vtysh", "-c", command],
+    )
+
+
+async def _frr_vtysh(router: str, command: str) -> tuple[str, Any]:
+    pod = await asyncio.to_thread(_frr_pod, router)
+    result = await _exec_json(
+        pod, ROUTING_CONTAINER, ["vtysh", "-c", command]
+    )
+    return pod, result
+
+
+def _routing_result(source: str, result: Any, **identity: Any) -> dict[str, Any]:
+    return {
+        **identity,
+        "source": source,
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "result": result,
+    }
+
+
 @mcp.tool()
 async def bng_health() -> dict[str, Any]:
     """Return reachability and HA state for every configured BNG member."""
@@ -269,6 +393,157 @@ async def bng_running_configs(
         "section": section or "all",
         "members": members,
         "differences": differences,
+    }
+
+
+@mcp.tool()
+async def bng_bgp_status(member: int) -> dict[str, Any]:
+    """Return structured FRR BGP summary and peer state for one zero-based BNG member."""
+    result = await _bng_vtysh(member, "show bgp ipv4 unicast summary json")
+    return _routing_result(
+        "vtysh: show bgp ipv4 unicast summary json", result, member=member
+    )
+
+
+@mcp.tool()
+async def bng_routes(
+    member: int, prefix: str | None = None
+) -> dict[str, Any]:
+    """Return the structured FRR RIB for one BNG member, optionally restricted to one validated IPv4 prefix."""
+    prefix = _validate_prefix(prefix)
+    command = "show ip route" + (f" {prefix}" if prefix else "") + " json"
+    result = await _bng_vtysh(member, command)
+    return _routing_result(f"vtysh: {command}", result, member=member)
+
+
+@mcp.tool()
+async def bng_bgp_routes(
+    member: int, prefix: str | None = None
+) -> dict[str, Any]:
+    """Return the structured BGP RIB for one BNG member, optionally restricted to one validated IPv4 prefix."""
+    prefix = _validate_prefix(prefix)
+    command = "show bgp ipv4 unicast" + (f" {prefix}" if prefix else "") + " json"
+    result = await _bng_vtysh(member, command)
+    return _routing_result(f"vtysh: {command}", result, member=member)
+
+
+@mcp.tool()
+async def bng_vpp_routes(member: int, prefix: str) -> dict[str, Any]:
+    """Return the authoritative VPP FIB detail for one validated IPv4 prefix on a BNG member."""
+    _member_url(member, "/")
+    prefix = _validate_prefix(prefix)
+    command = [
+        "vppctl", "-s", "/run/osvbng/cli.sock", "show", "ip", "fib", prefix
+    ]
+    result = await _exec_text(f"{RELEASE}-{member}", RELEASE, command)
+    return _routing_result(
+        f"vppctl: show ip fib {prefix}", {"output": result}, member=member
+    )
+
+
+@mcp.tool()
+async def frr_bgp_status(router: str) -> dict[str, Any]:
+    """Return structured BGP summary and peer state for ISP FRR router 'a' or 'b'."""
+    pod, result = await _frr_vtysh(
+        router, "show bgp ipv4 unicast summary json"
+    )
+    return _routing_result(
+        "vtysh: show bgp ipv4 unicast summary json",
+        result,
+        router=router,
+        pod=pod,
+    )
+
+
+@mcp.tool()
+async def frr_routes(
+    router: str, prefix: str | None = None
+) -> dict[str, Any]:
+    """Return the structured FRR RIB for ISP router 'a' or 'b', optionally restricted to one validated IPv4 prefix."""
+    prefix = _validate_prefix(prefix)
+    command = "show ip route" + (f" {prefix}" if prefix else "") + " json"
+    pod, result = await _frr_vtysh(router, command)
+    return _routing_result(
+        f"vtysh: {command}", result, router=router, pod=pod
+    )
+
+
+@mcp.tool()
+async def frr_bgp_routes(
+    router: str, prefix: str | None = None
+) -> dict[str, Any]:
+    """Return the structured BGP RIB for ISP router 'a' or 'b', optionally restricted to one validated IPv4 prefix."""
+    prefix = _validate_prefix(prefix)
+    command = "show bgp ipv4 unicast" + (f" {prefix}" if prefix else "") + " json"
+    pod, result = await _frr_vtysh(router, command)
+    return _routing_result(
+        f"vtysh: {command}", result, router=router, pod=pod
+    )
+
+
+@mcp.tool()
+async def frr_neighbor_routes(
+    router: str, neighbor: str, direction: str
+) -> dict[str, Any]:
+    """Return structured advertised or received BGP routes for one validated FRR neighbor. Direction must be 'advertised' or 'received'."""
+    neighbor = _validate_neighbor(neighbor)
+    if direction not in {"advertised", "received"}:
+        raise ValueError("direction must be 'advertised' or 'received'")
+    command = (
+        f"show bgp ipv4 unicast neighbors {neighbor} "
+        f"{direction}-routes json"
+    )
+    pod, result = await _frr_vtysh(router, command)
+    return _routing_result(
+        f"vtysh: {command}",
+        result,
+        router=router,
+        pod=pod,
+        neighbor=neighbor,
+        direction=direction,
+    )
+
+
+@mcp.tool()
+async def routing_overview(
+    cgnat_prefix: str = "100.64.100.0/24",
+) -> dict[str, Any]:
+    """Return one live routing overview across every BNG and both ISP FRRs: BGP summaries, default routes, CGNAT routes, and BNG VPP FIB state."""
+    cgnat_prefix = _validate_prefix(cgnat_prefix)
+
+    async def capture(name: str, operation) -> dict[str, Any]:
+        try:
+            return {"name": name, "data": await operation}
+        except Exception as exc:
+            return {"name": name, "error": str(exc)}
+
+    operations = []
+    for member in range(MEMBER_COUNT):
+        operations.extend(
+            [
+                capture(f"bng-{member}-bgp", bng_bgp_status(member)),
+                capture(f"bng-{member}-default-rib", bng_routes(member, "0.0.0.0/0")),
+                capture(f"bng-{member}-cgnat-rib", bng_routes(member, cgnat_prefix)),
+                capture(f"bng-{member}-default-fib", bng_vpp_routes(member, "0.0.0.0/0")),
+                capture(f"bng-{member}-cgnat-fib", bng_vpp_routes(member, cgnat_prefix)),
+            ]
+        )
+    for router in ("a", "b"):
+        operations.extend(
+            [
+                capture(f"frr-{router}-bgp", frr_bgp_status(router)),
+                capture(f"frr-{router}-default", frr_routes(router, "0.0.0.0/0")),
+                capture(f"frr-{router}-cgnat", frr_routes(router, cgnat_prefix)),
+            ]
+        )
+    # kubernetes.stream mutates its ApiClient while upgrading to WebSocket and
+    # is not thread-safe. Run the bounded set of read-only checks sequentially.
+    checks = [await operation for operation in operations]
+    return {
+        "observed_at": datetime.now(timezone.utc).isoformat(),
+        "healthy": all("error" not in check for check in checks),
+        "cgnat_prefix": cgnat_prefix,
+        "checks": checks,
     }
 
 

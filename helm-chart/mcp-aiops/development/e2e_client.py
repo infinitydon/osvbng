@@ -24,6 +24,15 @@ async def main(url: str, lifecycle: bool) -> None:
                 "cgnat_sessions",
                 "radius_servers",
                 "ha_switchover",
+                "bng_bgp_status",
+                "bng_routes",
+                "bng_bgp_routes",
+                "bng_vpp_routes",
+                "frr_bgp_status",
+                "frr_routes",
+                "frr_bgp_routes",
+                "frr_neighbor_routes",
+                "routing_overview",
                 "ue_sessions",
                 "ue_session_status",
                 "ue_session_range",
@@ -55,6 +64,7 @@ async def main(url: str, lifecycle: bool) -> None:
                 "ue_session_range",
                 {"start_session_id": 1, "end_session_id": 10},
             )
+            routing = await session.call_tool("routing_overview", {})
             blocked = await session.call_tool(
                 "ha_switchover", {"member": 0, "confirm": True}
             )
@@ -91,6 +101,7 @@ async def main(url: str, lifecycle: bool) -> None:
                     else None
                 ),
                 "ue_session_range_error": ue_range.isError,
+                "routing_overview_error": routing.isError,
                 "switchover_blocked": blocked.isError,
             }
 

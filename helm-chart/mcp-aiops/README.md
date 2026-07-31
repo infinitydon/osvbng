@@ -80,6 +80,13 @@ namespace. Create and delete activate or stop preallocated BNG Blaster slots;
 they require `osvbngMcp.allowUeMutations` and `confirm: true`. Status, ping, and
 curl remain read-only MCP operations.
 
+Routing diagnostics remain in the same `osvbng-ops` ToolHive server and
+Agentgateway `/mcp` route. They cover BGP summaries, FRR RIB/BGP routes,
+neighbor advertised/received routes, BNG VPP FIB detail, and a combined
+`routing_overview` across both BNGs and both ISP FRRs. Kubernetes pod exec is
+used only as a transport for predefined `show ... json` and `show ip fib`
+commands; the MCP API accepts no arbitrary command text.
+
 The Kubernetes backend provides pod inventory/details/logs, events, resource
 inventory, and resource reads. The Helm toolset is supported upstream but is
 disabled here; upstream currently provides install, list, and uninstall but

@@ -186,6 +186,18 @@ An SDK message such as `Session termination failed: 202` can appear after the
 JSON result. It concerns session cleanup and does not invalidate the successful
 tool checks above.
 
+Validate routing through the existing OSVBNG MCP endpoint:
+
+```text
+Show BGP and route health across both BNGs and both ISP FRRs.
+```
+
+Expected tool: `routing_overview`. The result must include both BNG member
+summaries, both ISP-FRR summaries, the default route, the configured CGNAT
+prefix, and each BNG's VPP FIB view. Focused tools are `bng_bgp_status`,
+`bng_routes`, `bng_bgp_routes`, `bng_vpp_routes`, `frr_bgp_status`,
+`frr_routes`, `frr_bgp_routes`, and `frr_neighbor_routes`.
+
 Run the governed two-UE lifecycle and traffic validation:
 
 ```powershell

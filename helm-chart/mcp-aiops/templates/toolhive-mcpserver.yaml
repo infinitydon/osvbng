@@ -5,6 +5,7 @@ metadata:
   name: {{ .Values.osvbngMcp.serverName }}
 spec:
   image: {{ .Values.osvbngMcp.image | quote }}
+  serviceAccount: {{ .Values.osvbngMcp.serviceAccountName }}
   {{- with .Values.osvbngMcp.imagePullSecrets }}
   podTemplateSpec:
     spec:
@@ -24,6 +25,10 @@ spec:
       value: {{ .Values.osvbngMcp.releaseName | quote }}
     - name: OSVBNG_MEMBER_COUNT
       value: {{ .Values.osvbngMcp.memberCount | quote }}
+    - name: OSVBNG_FRR_RELEASE
+      value: {{ .Values.osvbngMcp.frrReleaseName | quote }}
+    - name: OSVBNG_ROUTING_CONTAINER
+      value: {{ .Values.osvbngMcp.frrContainer | quote }}
     - name: OSVBNG_TIMEOUT
       value: {{ .Values.osvbngMcp.requestTimeoutSeconds | quote }}
     - name: OSVBNG_ALLOW_MUTATIONS

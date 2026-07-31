@@ -146,6 +146,36 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
             "/sessions?start_session_id=1&end_session_id=10&include_inactive=true"
         )
 
+    async def test_bng_routes_validates_and_uses_json(self):
+        with patch.object(
+            server, "_bng_vtysh", new=AsyncMock(return_value={"ok": True})
+        ) as command:
+            result = await server.bng_routes(0, "100.64.100.7/24")
+        command.assert_awaited_once_with(
+            0, "show ip route 100.64.100.0/24 json"
+        )
+        self.assertEqual({"ok": True}, result["result"])
+
+    async def test_frr_router_and_neighbor_validation(self):
+        with self.assertRaises(ValueError):
+            server._frr_pod("c")
+        with self.assertRaises(ValueError):
+            await server.frr_neighbor_routes("a", "not-an-ip", "received")
+        with self.assertRaises(ValueError):
+            await server.frr_neighbor_routes("a", "192.0.2.1", "invalid")
+
+    async def test_frr_bgp_status_uses_structured_command(self):
+        with patch.object(
+            server,
+            "_frr_vtysh",
+            new=AsyncMock(return_value=("frr-a-pod", {"peerCount": 3})),
+        ) as command:
+            result = await server.frr_bgp_status("a")
+        command.assert_awaited_once_with(
+            "a", "show bgp ipv4 unicast summary json"
+        )
+        self.assertEqual(3, result["result"]["peerCount"])
+
 
 if __name__ == "__main__":
     unittest.main()
