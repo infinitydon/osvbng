@@ -92,6 +92,26 @@ osvbngMcp:
       cpu: 500m
       memory: 256Mi
 
+kubernetesMcp:
+  enabled: true
+  serverName: kubernetes-ops
+  image: quay.io/containers/kubernetes_mcp_server:v0.0.65@sha256:5df586e2c7ced2a3125f6e78923388d80b69de0a2ad1470325b05318f12725bd
+  pullPolicy: IfNotPresent
+  serviceAccountName: kubernetes-ops-mcp
+  readOnly: true
+  toolsets:
+    - core
+  targetNamespaces:
+    - osvbng-aiops
+    - osvbng-ha
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
 gateway:
   enabled: true
   name: osvbng-mcp-gateway

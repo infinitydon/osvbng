@@ -1,0 +1,43 @@
+{{- if .Values.kubernetesMcp.enabled }}
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPServer
+metadata:
+  name: {{ .Values.kubernetesMcp.serverName }}
+spec:
+  image: {{ .Values.kubernetesMcp.image | quote }}
+  serviceAccount: {{ .Values.kubernetesMcp.serviceAccountName }}
+  transport: streamable-http
+  proxyPort: 8080
+  mcpPort: 8000
+  args:
+    - --port
+    - "8000"
+    - --cluster-provider
+    - in-cluster
+    - --disable-multi-cluster
+    {{- if .Values.kubernetesMcp.readOnly }}
+    - --read-only
+    {{- end }}
+    - --config
+    - /etc/kubernetes-mcp-server/config.toml
+    - --toolsets
+    - {{ join "," .Values.kubernetesMcp.toolsets | quote }}
+  podTemplateSpec:
+    metadata:
+      annotations:
+        checksum/config: {{ dict "readOnly" .Values.kubernetesMcp.readOnly "toolsets" .Values.kubernetesMcp.toolsets | toJson | sha256sum }}
+    spec:
+      containers:
+        - name: mcp
+          imagePullPolicy: {{ .Values.kubernetesMcp.pullPolicy }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kubernetes-mcp-server
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.kubernetesMcp.serverName }}-config
+  resources:
+    {{- toYaml .Values.kubernetesMcp.resources | nindent 4 }}
+{{- end }}

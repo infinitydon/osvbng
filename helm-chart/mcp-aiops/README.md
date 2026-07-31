@@ -5,8 +5,9 @@ This chart provides a framework-neutral MCP control plane for osvbng:
 ```text
 MCP client
   -> Agentgateway
-  -> ToolHive proxy
-  -> osvbng MCP server
+  -> ToolHive proxies
+     -> osvbng MCP server
+     -> Kubernetes MCP server
 
 Agent runtime
   -> Agentgateway
@@ -19,13 +20,26 @@ authorization, rate limiting, and observability. ToolHive `v0.40.1` manages
 the custom MCP server and its isolated proxy. Both upstream charts are pinned
 dependencies.
 
+The optional Kubernetes operations backend uses upstream
+`containers/kubernetes-mcp-server` `v0.0.65`. It defaults to the `core`
+toolset in read-only mode. Secret and ServiceAccount resources are denied in
+the server configuration, and no Kubernetes mutation tools are published.
+Its ServiceAccount is additionally bound to read-only Roles in the namespaces
+listed by `kubernetesMcp.targetNamespaces`.
+
+The lab API server currently permits service-account operations beyond those
+RoleBindings, so the server-side `read_only` and `denied_resources` controls
+are the effective safety boundary. Correct the cluster authorization mode
+before enabling any Kubernetes mutation or Helm toolset.
+
 The MCP source, tests, build file, and prerequisite helper live under
 `development/`. The chart's `.helmignore` excludes that entire directory from
 the packaged Helm artifact.
 
 ## Tools
 
-The first release exposes:
+Agentgateway prefixes tools by backend: `osvbng_*` for the following domain
+tools and `kubernetes_*` for generic Kubernetes operations.
 
 - `bng_health`
 - `bng_running_config`
@@ -65,6 +79,11 @@ UE lifecycle is backed by the private `ue-test-api` service in the BNG
 namespace. Create and delete activate or stop preallocated BNG Blaster slots;
 they require `osvbngMcp.allowUeMutations` and `confirm: true`. Status, ping, and
 curl remain read-only MCP operations.
+
+The Kubernetes backend provides pod inventory/details/logs, events, resource
+inventory, and resource reads. The Helm toolset is supported upstream but is
+disabled here; upstream currently provides install, list, and uninstall but
+not upgrade or rollback.
 
 ## Install
 
@@ -206,7 +225,7 @@ See [MCP-VALIDATION.md](MCP-VALIDATION.md) for the complete Agentgateway and
 MCP tool validation runbook, including representative expected output.
 
 ```shell
-kubectl get mcpserver osvbng-ops -n osvbng-aiops
+kubectl get mcpserver osvbng-ops kubernetes-ops -n osvbng-aiops
 kubectl get gateway,httproute,agentgatewaybackend -n osvbng-aiops
 kubectl get pods -n osvbng-aiops
 ```
@@ -215,6 +234,8 @@ ToolHive creates two workloads for the operations server:
 
 - `osvbng-ops-0` is the custom operations MCP backend.
 - `osvbng-ops-<hash>` is ToolHive's proxy runner in front of the backend.
+- `kubernetes-ops-0` is the read-only Kubernetes MCP backend.
+- `kubernetes-ops-<hash>` is its ToolHive proxy runner.
 
 Neither is an OSVBNG dataplane instance. The actual BNG pods remain `osvbng-0`
 and `osvbng-1` in the BNG release namespace (for example, `osvbng-ha`).
