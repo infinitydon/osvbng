@@ -71,7 +71,6 @@ open-webui:
 
 osvbngMcp:
   enabled: true
-  serverName: osvbng-ops
   serviceAccountName: osvbng-ops-mcp
   image: ghcr.io/infinitydon/osvbng-mcp:0.2.12@sha256:4eca66d47d36202b99119688f59cf9ef4835a7aa73ca16fd69cde8d476832d8c
   pullPolicy: IfNotPresent
@@ -83,10 +82,52 @@ osvbngMcp:
   releaseName: osvbng
   memberCount: 2
   requestTimeoutSeconds: 10
-  allowMutations: false
   ueApiUrl: http://ue-test-api.osvbng-ha.svc.cluster.local:8081
   ueRequestTimeoutSeconds: 60
-  allowUeMutations: true
+  profiles:
+    noc:
+      enabled: true
+      serverName: osvbng-ops-noc
+      path: /mcp/noc
+      # Keep /mcp as the least-privilege default for existing clients.
+      legacyPath: /mcp
+      allowMutations: false
+      allowUeMutations: false
+      clientAuth:
+        enabled: true
+        secretName: osvbng-mcp-noc-client-key
+      tools:
+        - bng_health
+        - ha_status
+        - ha_sync
+        - subscriber_sessions
+        - cgnat_pools
+        - cgnat_mappings
+        - cgnat_sessions
+        - radius_servers
+        - bng_bgp_status
+        - bng_routes
+        - bng_bgp_routes
+        - bng_vpp_routes
+        - frr_bgp_status
+        - frr_routes
+        - frr_bgp_routes
+        - frr_neighbor_routes
+        - routing_overview
+        - ue_sessions
+        - ue_session_range
+        - ue_session_status
+        - ue_ping
+        - ue_curl
+    admin:
+      enabled: true
+      serverName: osvbng-ops-admin
+      path: /mcp/admin
+      allowMutations: true
+      allowUeMutations: true
+      clientAuth:
+        enabled: true
+        secretName: osvbng-mcp-admin-client-key
   resources:
     requests:
       cpu: 50m

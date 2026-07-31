@@ -25,31 +25,35 @@ Expected result (pod hashes will differ):
 NAME                                            READY   STATUS    RESTARTS
 osvbng-aiops-agentgateway-597f974468-nt9rn      1/1     Running   0
 osvbng-mcp-gateway-5755f9879d-zw57m             1/1     Running   0
-osvbng-ops-0                                    1/1     Running   0
-osvbng-ops-5d4c8cfd69-gvxxw                     1/1     Running   0
+osvbng-ops-noc-0                                1/1     Running   0
+osvbng-ops-noc-<hash>                           1/1     Running   0
+osvbng-ops-admin-0                              1/1     Running   0
+osvbng-ops-admin-<hash>                         1/1     Running   0
 toolhive-operator-78dbbb5987-fs2kf              1/1     Running   0
 ```
 
-`osvbng-ops-0` is the operations MCP backend. `osvbng-ops-<hash>` is its
-ToolHive proxy. They are not BNG dataplane pods.
+Each profile has one `-0` MCP backend and one hashed ToolHive proxy. They are
+not BNG dataplane pods.
 
 ## 2. Validate ToolHive
 
 ```powershell
-kubectl get mcpserver osvbng-ops -n osvbng-aiops
+kubectl get mcpserver osvbng-ops-noc osvbng-ops-admin -n osvbng-aiops
+kubectl get mcptoolconfig osvbng-ops-noc-tools -n osvbng-aiops
 ```
 
 Expected result:
 
 ```text
-NAME          STATUS   READY   REPLICAS   URL
-osvbng-ops    Ready    True    1          http://mcp-osvbng-ops-proxy.osvbng-aiops.svc.cluster.local:8080/mcp
+NAME               STATUS   READY   REPLICAS
+osvbng-ops-noc     Ready    True    1
+osvbng-ops-admin   Ready    True    1
 ```
 
 Confirm that ToolHive's backend health checks receive HTTP 200:
 
 ```powershell
-kubectl logs -n osvbng-aiops osvbng-ops-0 --since=2m |
+kubectl logs -n osvbng-aiops osvbng-ops-noc-0 --since=2m |
   Select-String 'GET / HTTP'
 ```
 
@@ -75,10 +79,12 @@ NAME                                                   CLASS          ADDRESS   
 gateway.gateway.networking.k8s.io/osvbng-mcp-gateway   agentgateway   <cluster-ip>     True
 
 NAME
-httproute.gateway.networking.k8s.io/osvbng-mcp
+httproute.gateway.networking.k8s.io/osvbng-mcp-noc
+httproute.gateway.networking.k8s.io/osvbng-mcp-admin
 
 NAME                                              ACCEPTED
-agentgatewaybackend.agentgateway.dev/osvbng-mcp   True
+agentgatewaybackend.agentgateway.dev/osvbng-mcp-noc     True
+agentgatewaybackend.agentgateway.dev/osvbng-mcp-admin   True
 ```
 
 The two required success conditions are:
@@ -89,21 +95,22 @@ The two required success conditions are:
 Confirm that the Agentgateway backend resolves to the ToolHive proxy:
 
 ```powershell
-kubectl get agentgatewaybackend osvbng-mcp -n osvbng-aiops `
+kubectl get agentgatewaybackend osvbng-mcp-noc -n osvbng-aiops `
   -o custom-columns='SERVICE:.spec.mcp.targets[0].static.backendRef.name,PORT:.spec.mcp.targets[0].static.port'
 ```
 
 Expected output:
 
 ```text
-SERVICE                PORT
-mcp-osvbng-ops-proxy   8080
+SERVICE                    PORT
+mcp-osvbng-ops-noc-proxy   8080
 ```
 
 ## 4. List and exercise the MCP tools
 
-Agentgateway exposes stable, separate endpoints: `/mcp` for OSVBNG and
-`/kubernetes/mcp` for Kubernetes. This preserves existing OSVBNG tool names.
+Agentgateway exposes authenticated `/mcp/noc` and `/mcp/admin` OSVBNG
+endpoints. Exact `/mcp` is a compatibility alias for NOC. Kubernetes remains
+at `/kubernetes/mcp`.
 
 Find a reachable worker-node address and confirm the allocated NodePort:
 
@@ -127,8 +134,13 @@ client. Replace `<node-ip>` with a reachable address from `kubectl get nodes
 cd helm-chart\mcp-aiops\development
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements.txt
+$encoded = kubectl get secret osvbng-mcp-noc-client-key -n osvbng-aiops `
+  -o jsonpath='{.data.api-key}'
+$env:MCP_API_KEY = [Text.Encoding]::UTF8.GetString(
+  [Convert]::FromBase64String($encoded)
+)
 .\.venv\Scripts\python e2e_client.py `
-  --url http://<node-ip>:30080/mcp
+  --url http://<node-ip>:30080/mcp/noc --profile noc
 ```
 
 Expected output:
@@ -137,24 +149,39 @@ Expected output:
 {
   "tools": [
     "bng_health",
-    "bng_running_config",
+    "bng_bgp_status",
     "cgnat_pools",
     "ha_status",
+    "routing_overview",
     "ue_sessions"
   ],
   "bng_health_error": false,
   "ha_status_error": false,
   "cgnat_pools_error": false,
-  "switchover_blocked": true
+  "forbidden_tools_present": []
 }
 ```
 
 This result proves that:
 
 - the client reached the MCP endpoint through Agentgateway;
-- the required OSVBNG tool definitions were returned without renaming;
+- the required NOC tool definitions were returned without renaming;
 - live BNG health, HA status, and CGNAT pool calls completed successfully; and
-- the mutating HA switchover operation was denied by the default safety policy.
+- raw configuration, UE create/delete, and HA switchover were absent from NOC
+  tool discovery.
+
+Requests without a key, or with the NOC key sent to `/mcp/admin`, must return
+HTTP `401`. Repeat with the value from `osvbng-mcp-admin-client-key` and
+`--url http://<node-ip>:30080/mcp/admin --profile admin`. The admin result must
+include `bng_running_config`, `ue_session_create`, `ue_session_delete`, and
+`ha_switchover`. The validation client never invokes those mutation tools.
+
+In Open WebUI, verify that a normal `user` assigned to `OSVBNG NOC` sees only
+`osvbng-noc-ollama-cloud`. Its attached tool ID must be
+`server:mcp:osvbng-operations-noc`. The admin model must attach
+`server:mcp:osvbng-operations-admin` and may additionally attach the read-only
+Kubernetes server. A NOC request that explicitly supplies the admin tool ID
+must return no admin tool calls.
 
 Validate the Kubernetes backend and its safety controls:
 
@@ -202,7 +229,8 @@ Run the governed two-UE lifecycle and traffic validation:
 
 ```powershell
 .\.venv\Scripts\python e2e_client.py `
-  --url http://<node-ip>:30080/mcp `
+  --url http://<node-ip>:30080/mcp/admin `
+  --profile admin `
   --lifecycle
 ```
 
@@ -286,11 +314,11 @@ The same test can be run from the MCP backend pod:
 
 ```powershell
 kubectl cp .\development\e2e_client.py `
-  osvbng-aiops/osvbng-ops-0:/dev/shm/e2e_client.py
+  osvbng-aiops/osvbng-ops-admin-0:/dev/shm/e2e_client.py
 
-kubectl exec -n osvbng-aiops osvbng-ops-0 -- `
+kubectl exec -n osvbng-aiops osvbng-ops-admin-0 -- `
   python /dev/shm/e2e_client.py `
-  --url http://osvbng-mcp-gateway/mcp
+  --url http://osvbng-mcp-gateway/mcp/admin --profile admin
 ```
 
 The expected JSON is identical to the output in the preceding section.
@@ -507,10 +535,17 @@ asking for approval.
 For the current lab, the expected saved connection is:
 
 ```text
-Name: OSVBNG Operations
+Name: OSVBNG NOC Operations
 Type: MCP
-URL:  http://osvbng-mcp-gateway/mcp
-Tool count: 9
+URL:  http://osvbng-mcp-gateway/mcp/noc
+Authentication: Bearer
+Tool count: 22
+
+Name: OSVBNG Admin Operations
+Type: MCP
+URL:  http://osvbng-mcp-gateway/mcp/admin
+Authentication: Bearer
+Tool count: 27
 ```
 
 Verify that public signup was closed after creating the first administrator.

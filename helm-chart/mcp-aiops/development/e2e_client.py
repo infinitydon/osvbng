@@ -1,13 +1,18 @@
 import argparse
 import asyncio
 import json
+import os
 
+import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 
-async def main(url: str, lifecycle: bool) -> None:
-    async with streamable_http_client(url) as (read, write, _):
+async def main(url: str, lifecycle: bool, profile: str) -> None:
+    token = os.environ.get("MCP_API_KEY")
+    headers = {"Authorization": f"Bearer {token}"} if token else None
+    async with httpx.AsyncClient(headers=headers) as http_client:
+      async with streamable_http_client(url, http_client=http_client) as (read, write, _):
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
@@ -42,21 +47,50 @@ async def main(url: str, lifecycle: bool) -> None:
                 "ue_curl",
             }
             missing = required.difference(names)
-            if missing:
+            if profile == "admin" and missing:
                 raise RuntimeError(f"missing tools: {sorted(missing)}")
 
-            health = await session.call_tool("bng_health", {})
-            running = await session.call_tool(
+            noc_required = {
+                "bng_health",
+                "subscriber_sessions",
+                "bng_bgp_status",
+                "frr_bgp_status",
+                "routing_overview",
+                "ue_sessions",
+                "ue_session_status",
+            }
+            forbidden = {
                 "bng_running_config",
-                {
-                    "member": 0,
-                    "section": "plugins.subscriber.auth.radius",
-                },
-            )
-            running_all = await session.call_tool(
                 "bng_running_configs",
-                {"section": "ha"},
-            )
+                "ue_session_create",
+                "ue_session_delete",
+                "ha_switchover",
+            }
+            if profile == "noc":
+                if noc_required.difference(names):
+                    raise RuntimeError(
+                        f"missing NOC tools: {sorted(noc_required.difference(names))}"
+                    )
+                if forbidden.intersection(names):
+                    raise RuntimeError(
+                        f"NOC exposes forbidden tools: {sorted(forbidden.intersection(names))}"
+                    )
+
+            health = await session.call_tool("bng_health", {})
+            running = None
+            running_all = None
+            if profile == "admin":
+                running = await session.call_tool(
+                    "bng_running_config",
+                    {
+                        "member": 0,
+                        "section": "plugins.subscriber.auth.radius",
+                    },
+                )
+                running_all = await session.call_tool(
+                    "bng_running_configs",
+                    {"section": "ha"},
+                )
             status = await session.call_tool("ha_status", {"member": 0})
             pools = await session.call_tool("cgnat_pools", {})
             mappings = await session.call_tool("cgnat_mappings", {})
@@ -65,23 +99,32 @@ async def main(url: str, lifecycle: bool) -> None:
                 {"start_session_id": 1, "end_session_id": 10},
             )
             routing = await session.call_tool("routing_overview", {})
-            blocked = await session.call_tool(
-                "ha_switchover", {"member": 0, "confirm": True}
-            )
-            if blocked.isError is not True:
-                raise RuntimeError("mutating tool was not blocked")
-
+            admin_ue_confirmation_blocked = None
+            admin_ha_confirmation_blocked = None
+            if profile == "admin":
+                guarded_ue = await session.call_tool(
+                    "ue_session_delete", {"session_id": 20, "confirm": False}
+                )
+                guarded_ha = await session.call_tool(
+                    "ha_switchover", {"member": 0, "confirm": False}
+                )
+                admin_ue_confirmation_blocked = guarded_ue.isError
+                admin_ha_confirmation_blocked = guarded_ha.isError
+                if not admin_ue_confirmation_blocked or not admin_ha_confirmation_blocked:
+                    raise RuntimeError("admin mutation confirmation guard failed")
             result = {
+                "profile": profile,
                 "tools": names,
                 "bng_health_error": health.isError,
-                "bng_running_config_error": running.isError,
-                "bng_running_configs_error": running_all.isError,
+                "bng_running_config_error": running.isError if running else None,
+                "bng_running_configs_error": running_all.isError if running_all else None,
                 "bng_running_config_redacted": (
                     "<redacted>" in json.dumps(running.structuredContent)
+                    if running else None
                 ),
                 "bng_running_config_diff_count": (
                     len(running_all.structuredContent.get("differences", []))
-                    if running_all.structuredContent
+                    if running_all and running_all.structuredContent
                     else None
                 ),
                 "ha_status_error": status.isError,
@@ -102,7 +145,9 @@ async def main(url: str, lifecycle: bool) -> None:
                 ),
                 "ue_session_range_error": ue_range.isError,
                 "routing_overview_error": routing.isError,
-                "switchover_blocked": blocked.isError,
+                "forbidden_tools_present": sorted(forbidden.intersection(names)),
+                "admin_ue_confirmation_blocked": admin_ue_confirmation_blocked,
+                "admin_ha_confirmation_blocked": admin_ha_confirmation_blocked,
             }
 
             if lifecycle:
@@ -151,10 +196,11 @@ async def main(url: str, lifecycle: bool) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--url", default="http://127.0.0.1:18080/mcp")
+    parser.add_argument("--profile", choices=("noc", "admin"), default="admin")
     parser.add_argument(
         "--lifecycle",
         action="store_true",
         help="create UE sessions 2 and 3, test session 3, then delete both",
     )
     args = parser.parse_args()
-    asyncio.run(main(args.url, args.lifecycle))
+    asyncio.run(main(args.url, args.lifecycle, args.profile))

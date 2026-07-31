@@ -2,7 +2,7 @@ apiVersion: v2
 name: osvbng-mcp-aiops
 description: Agentgateway and ToolHive platform for osvbng MCP operations
 type: application
-version: 0.3.5
+version: 0.4.0
 appVersion: "0.2.12"
 kubeVersion: ">=1.32.0-0"
 dependencies:

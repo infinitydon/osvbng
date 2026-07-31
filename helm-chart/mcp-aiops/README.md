@@ -38,8 +38,9 @@ the packaged Helm artifact.
 
 ## Tools
 
-The OSVBNG and Kubernetes servers use separate gateway paths so adding the
-Kubernetes backend does not rename or invalidate existing OSVBNG tools.
+The OSVBNG server is published as two isolated ToolHive profiles. The NOC
+profile is an explicit allowlist; the admin profile exposes every approved
+OSVBNG tool. Kubernetes remains a separate read-only backend.
 
 - `bng_health`
 - `bng_running_config`
@@ -72,16 +73,16 @@ for example `cgnat`, `ha`, `interfaces.core`, or
 `plugins.subscriber.auth.radius`.
 
 All operational reads return structured JSON from the selected StatefulSet
-member. `ha_switchover` is denied unless `osvbngMcp.allowMutations` is enabled
-and the individual call includes `confirm: true`.
+member. `ha_switchover` exists only in the admin profile and every call still
+requires `confirm: true`.
 
 UE lifecycle is backed by the private `ue-test-api` service in the BNG
 namespace. Create and delete activate or stop preallocated BNG Blaster slots;
-they require `osvbngMcp.allowUeMutations` and `confirm: true`. Status, ping, and
-curl remain read-only MCP operations.
+they exist only in the admin profile and require `confirm: true`. Status, ping,
+and curl remain available to the NOC profile.
 
-Routing diagnostics remain in the same `osvbng-ops` ToolHive server and
-Agentgateway `/mcp` route. They cover BGP summaries, FRR RIB/BGP routes,
+Routing diagnostics are available from both profiles. They cover BGP
+summaries, FRR RIB/BGP routes,
 neighbor advertised/received routes, BNG VPP FIB detail, and a combined
 `routing_overview` across both BNGs and both ISP FRRs. Kubernetes pod exec is
 used only as a transport for predefined `show ... json` and `show ip fib`
@@ -107,6 +108,24 @@ instructions and the `pods_get`/`resources_get` tool descriptions.
 
 Set the kubeconfig, install the pinned CRDs, and create a pull secret when the
 custom image is private:
+
+Create independent client keys before installing or upgrading the chart. Do
+not put their values in `values.yaml`:
+
+```powershell
+$rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+function New-McpKey {
+  $bytes = New-Object byte[] 32
+  $rng.GetBytes($bytes)
+  ([BitConverter]::ToString($bytes) -replace '-', '').ToLowerInvariant()
+}
+$nocKey = New-McpKey
+$adminKey = New-McpKey
+kubectl create secret generic osvbng-mcp-noc-client-key -n osvbng-aiops `
+  --from-literal=api-key=$nocKey
+kubectl create secret generic osvbng-mcp-admin-client-key -n osvbng-aiops `
+  --from-literal=api-key=$adminKey
+```
 
 ```powershell
 $env:KUBECONFIG = 'C:\path\to\kubeconfig'
@@ -153,11 +172,11 @@ The Gateway Service defaults to `NodePort` port `30080`. Access it through the
 IP address of any reachable Kubernetes node:
 
 ```shell
-curl http://<node-ip>:30080/mcp
+curl -H "Authorization: Bearer <noc-key>" http://<node-ip>:30080/mcp/noc
 ```
 
-The Streamable HTTP endpoint is `http://<node-ip>:30080/mcp`. Override
-`gateway.nodePort` if port `30080` is unavailable.
+The authenticated endpoints are `/mcp/noc` and `/mcp/admin`; exact `/mcp`
+aliases NOC. Override `gateway.nodePort` if port `30080` is unavailable.
 
 The authenticated Ollama Cloud endpoint is:
 
@@ -206,18 +225,42 @@ kubectl create secret generic osvbng-open-webui-secret `
   --from-literal=WEBUI_SECRET_KEY="$env:WEBUI_SECRET_KEY"
 ```
 
-The first account registered through the UI becomes the administrator. As that
-administrator, add the OSVBNG MCP server under **Admin Settings -> External
-Tools**:
+The first account registered through the UI becomes the administrator. Add two
+authenticated MCP connections under **Admin Settings -> External Tools**:
 
 ```text
 Type: MCP (Streamable HTTP)
-URL:  http://osvbng-mcp-gateway/mcp
-Name: OSVBNG Operations
+URL:  http://osvbng-mcp-gateway/mcp/noc
+Authentication: Bearer
+Key: value from osvbng-mcp-noc-client-key
+Name: OSVBNG NOC Operations
+
+Type: MCP (Streamable HTTP)
+URL:  http://osvbng-mcp-gateway/mcp/admin
+Authentication: Bearer
+Key: value from osvbng-mcp-admin-client-key
+Name: OSVBNG Admin Operations
 ```
 
-The MCP connection remains inside the cluster and still traverses
-Agentgateway. Do not configure `mcp-osvbng-ops-proxy` directly in the UI.
+Grant the NOC connection to an `OSVBNG NOC` Open WebUI group. Leave the admin
+connection without grants; Open WebUI treats it as administrator-only. The MCP
+connections remain inside the cluster and still traverse Agentgateway. Do not
+configure ToolHive proxy Services directly in the UI.
+
+The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
+require the NOC key; unauthenticated requests are rejected.
+
+Create two curated models:
+
+- `qwen3.5:cloud - OSVBNG NOC Operations`: grant to `OSVBNG NOC` and attach
+  only `OSVBNG NOC Operations`.
+- `qwen3.5:cloud - OSVBNG Admin Operations`: leave administrator-only and
+  attach `OSVBNG Admin Operations` plus `Kubernetes Operations`.
+
+`development/openwebui_tool_profiles.py` performs this configuration through
+the Open WebUI API for the lab. It reads all passwords and keys from environment
+variables and never prints them. That helper is excluded from the packaged
+chart.
 
 Add Kubernetes as a second External Tool and attach it to the same curated
 model when cluster diagnostics are wanted:
@@ -249,21 +292,26 @@ Open WebUI automatically disables self-registration after the first
 administrator is created. Create subsequent users from the administrator
 interface rather than reopening public signup.
 
+The lab NOC account may be stored in `osvbng-open-webui-noc`. Recover it using
+the same commands with that Secret name. Add that user to the `OSVBNG NOC`
+group; it can discover the NOC connection but not the admin connection.
+
 ## Verify
 
 See [MCP-VALIDATION.md](MCP-VALIDATION.md) for the complete Agentgateway and
 MCP tool validation runbook, including representative expected output.
 
 ```shell
-kubectl get mcpserver osvbng-ops kubernetes-ops -n osvbng-aiops
+kubectl get mcpserver osvbng-ops-noc osvbng-ops-admin kubernetes-ops -n osvbng-aiops
+kubectl get mcptoolconfig osvbng-ops-noc-tools -n osvbng-aiops
 kubectl get gateway,httproute,agentgatewaybackend -n osvbng-aiops
 kubectl get pods -n osvbng-aiops
 ```
 
-ToolHive creates two workloads for the operations server:
+ToolHive creates a backend and proxy workload for each profile:
 
-- `osvbng-ops-0` is the custom operations MCP backend.
-- `osvbng-ops-<hash>` is ToolHive's proxy runner in front of the backend.
+- `osvbng-ops-noc-0` and `osvbng-ops-noc-<hash>` serve the filtered NOC profile.
+- `osvbng-ops-admin-0` and `osvbng-ops-admin-<hash>` serve the admin profile.
 - `kubernetes-ops-0` is the read-only Kubernetes MCP backend.
 - `kubernetes-ops-<hash>` is its ToolHive proxy runner.
 
@@ -279,15 +327,17 @@ python -m venv .venv
 .\.venv\Scripts\python -m unittest -v test_server.py
 ```
 
-Run the deterministic client through Agentgateway:
+Run the deterministic client through Agentgateway after setting the applicable
+key in `MCP_API_KEY`:
 
 ```powershell
 .\.venv\Scripts\python e2e_client.py `
-  --url http://127.0.0.1:8080/mcp
+  --url http://127.0.0.1:8080/mcp/noc --profile noc
 ```
 
-The test asserts all tool schemas, executes live health, HA, and CGNAT reads,
-and proves that switchover is blocked.
+The NOC test executes live health, HA, CGNAT, routing and UE reads and proves
+that raw configuration and mutation tools are absent from discovery. The admin
+profile test verifies the complete schema without invoking a mutation.
 
 ## Build
 

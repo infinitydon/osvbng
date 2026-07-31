@@ -33,18 +33,21 @@ spec:
           targetPort: {{ .Values.gateway.port }}
           nodePort: {{ .Values.gateway.nodePort }}
       {{- end }}
+{{- $root := . }}
+{{- range $profileName, $profile := .Values.osvbngMcp.profiles }}
+{{- if $profile.enabled }}
 ---
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: osvbng-mcp
+  name: osvbng-mcp-{{ $profileName }}
 spec:
   mcp:
     targets:
-      - name: osvbng
+      - name: osvbng-{{ $profileName }}
         static:
           backendRef:
-            name: mcp-{{ .Values.osvbngMcp.serverName }}-proxy
+            name: mcp-{{ $profile.serverName }}-proxy
           port: 8080
           path: /mcp
           protocol: StreamableHTTP
@@ -52,19 +55,47 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: osvbng-mcp
+  name: osvbng-mcp-{{ $profileName }}
 spec:
   parentRefs:
-    - name: {{ .Values.gateway.name }}
+    - name: {{ $root.Values.gateway.name }}
   rules:
     - matches:
         - path:
             type: PathPrefix
-            value: /mcp
+            value: {{ $profile.path }}
+        {{- with $profile.legacyPath }}
+        - path:
+            type: Exact
+            value: {{ . }}
+        {{- end }}
       backendRefs:
-        - name: osvbng-mcp
+        - name: osvbng-mcp-{{ $profileName }}
           group: agentgateway.dev
           kind: AgentgatewayBackend
+{{- if $profile.clientAuth.enabled }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: osvbng-mcp-{{ $profileName }}-client-auth
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: osvbng-mcp-{{ $profileName }}
+  traffic:
+    apiKeyAuthentication:
+      mode: Strict
+      secretRef:
+        name: {{ $profile.clientAuth.secretName }}
+      location:
+        header:
+          name: Authorization
+          prefix: "Bearer "
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if .Values.kubernetesMcp.enabled }}
 ---
 apiVersion: agentgateway.dev/v1alpha1

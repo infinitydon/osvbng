@@ -1,44 +1,64 @@
 {{- if .Values.osvbngMcp.enabled }}
+{{- $root := . }}
+{{- range $profileName, $profile := .Values.osvbngMcp.profiles }}
+{{- if $profile.enabled }}
+{{- if $profile.tools }}
+apiVersion: toolhive.stacklok.dev/v1beta1
+kind: MCPToolConfig
+metadata:
+  name: {{ $profile.serverName }}-tools
+spec:
+  toolsFilter:
+    {{- toYaml $profile.tools | nindent 4 }}
+---
+{{- end }}
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPServer
 metadata:
-  name: {{ .Values.osvbngMcp.serverName }}
+  name: {{ $profile.serverName }}
 spec:
-  image: {{ .Values.osvbngMcp.image | quote }}
-  serviceAccount: {{ .Values.osvbngMcp.serviceAccountName }}
-  {{- with .Values.osvbngMcp.imagePullSecrets }}
+  image: {{ $root.Values.osvbngMcp.image | quote }}
+  serviceAccount: {{ $root.Values.osvbngMcp.serviceAccountName }}
+  {{- if $profile.tools }}
+  toolConfigRef:
+    name: {{ $profile.serverName }}-tools
+  {{- end }}
+  {{- with $root.Values.osvbngMcp.imagePullSecrets }}
   podTemplateSpec:
     spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       containers:
         - name: mcp
-          imagePullPolicy: {{ $.Values.osvbngMcp.pullPolicy }}
+          imagePullPolicy: {{ $root.Values.osvbngMcp.pullPolicy }}
   {{- end }}
   transport: streamable-http
   proxyPort: 8080
   mcpPort: 8000
   env:
     - name: OSVBNG_NAMESPACE
-      value: {{ .Values.osvbngMcp.bngNamespace | quote }}
+      value: {{ $root.Values.osvbngMcp.bngNamespace | quote }}
     - name: OSVBNG_RELEASE
-      value: {{ .Values.osvbngMcp.releaseName | quote }}
+      value: {{ $root.Values.osvbngMcp.releaseName | quote }}
     - name: OSVBNG_MEMBER_COUNT
-      value: {{ .Values.osvbngMcp.memberCount | quote }}
+      value: {{ $root.Values.osvbngMcp.memberCount | quote }}
     - name: OSVBNG_FRR_RELEASE
-      value: {{ .Values.osvbngMcp.frrReleaseName | quote }}
+      value: {{ $root.Values.osvbngMcp.frrReleaseName | quote }}
     - name: OSVBNG_ROUTING_CONTAINER
-      value: {{ .Values.osvbngMcp.frrContainer | quote }}
+      value: {{ $root.Values.osvbngMcp.frrContainer | quote }}
     - name: OSVBNG_TIMEOUT
-      value: {{ .Values.osvbngMcp.requestTimeoutSeconds | quote }}
+      value: {{ $root.Values.osvbngMcp.requestTimeoutSeconds | quote }}
     - name: OSVBNG_ALLOW_MUTATIONS
-      value: {{ .Values.osvbngMcp.allowMutations | quote }}
+      value: {{ $profile.allowMutations | quote }}
     - name: OSVBNG_UE_API_URL
-      value: {{ .Values.osvbngMcp.ueApiUrl | quote }}
+      value: {{ $root.Values.osvbngMcp.ueApiUrl | quote }}
     - name: OSVBNG_UE_TIMEOUT
-      value: {{ .Values.osvbngMcp.ueRequestTimeoutSeconds | quote }}
+      value: {{ $root.Values.osvbngMcp.ueRequestTimeoutSeconds | quote }}
     - name: OSVBNG_ALLOW_UE_MUTATIONS
-      value: {{ .Values.osvbngMcp.allowUeMutations | quote }}
+      value: {{ $profile.allowUeMutations | quote }}
   resources:
-    {{- toYaml .Values.osvbngMcp.resources | nindent 4 }}
+    {{- toYaml $root.Values.osvbngMcp.resources | nindent 4 }}
+---
+{{- end }}
+{{- end }}
 {{- end }}
