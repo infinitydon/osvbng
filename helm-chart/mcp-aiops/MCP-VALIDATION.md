@@ -102,8 +102,8 @@ mcp-osvbng-ops-proxy   8080
 
 ## 4. List and exercise the MCP tools
 
-The shared Agentgateway endpoint aggregates both backends. Tool names are
-prefixed as `osvbng_*` and `kubernetes_*` to avoid collisions.
+Agentgateway exposes stable, separate endpoints: `/mcp` for OSVBNG and
+`/kubernetes/mcp` for Kubernetes. This preserves existing OSVBNG tool names.
 
 Find a reachable worker-node address and confirm the allocated NodePort:
 
@@ -136,13 +136,11 @@ Expected output:
 ```json
 {
   "tools": [
-    "kubernetes_events_list",
-    "kubernetes_pods_list_in_namespace",
-    "kubernetes_resources_get",
-    "osvbng_bng_health",
-    "osvbng_cgnat_pools",
-    "osvbng_ha_status",
-    "osvbng_ue_sessions"
+    "bng_health",
+    "bng_running_config",
+    "cgnat_pools",
+    "ha_status",
+    "ue_sessions"
   ],
   "bng_health_error": false,
   "ha_status_error": false,
@@ -154,7 +152,7 @@ Expected output:
 This result proves that:
 
 - the client reached the MCP endpoint through Agentgateway;
-- the required OSVBNG and Kubernetes tool definitions were returned;
+- the required OSVBNG tool definitions were returned without renaming;
 - live BNG health, HA status, and CGNAT pool calls completed successfully; and
 - the mutating HA switchover operation was denied by the default safety policy.
 
@@ -165,10 +163,9 @@ kubectl get mcpserver kubernetes-ops -n osvbng-aiops
 kubectl logs -n osvbng-aiops kubernetes-ops-0 --tail=50
 ```
 
-Through the MCP endpoint, call
-`kubernetes_pods_list_in_namespace` with `namespace=osvbng-ha` and
-`kubernetes_events_list` with the same namespace. Both must succeed. A
-`kubernetes_resources_get` call for `v1/Secret` must fail with
+Through `http://<node-ip>:30080/kubernetes/mcp`, call
+`pods_list_in_namespace` with `namespace=osvbng-ha` and `events_list` with the
+same namespace. Both must succeed. A `resources_get` call for `v1/Secret` must fail with
 `resource not allowed`, and the tool list must contain no Kubernetes create,
 update, delete, scale, exec, run, Helm install, or Helm uninstall tools.
 

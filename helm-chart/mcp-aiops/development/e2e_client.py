@@ -13,52 +13,50 @@ async def main(url: str, lifecycle: bool) -> None:
             tools = await session.list_tools()
             names = sorted(tool.name for tool in tools.tools)
             required = {
-                "osvbng_bng_health",
-                "osvbng_bng_running_config",
-                "osvbng_bng_running_configs",
-                "osvbng_ha_status",
-                "osvbng_ha_sync",
-                "osvbng_subscriber_sessions",
-                "osvbng_cgnat_pools",
-                "osvbng_cgnat_mappings",
-                "osvbng_cgnat_sessions",
-                "osvbng_radius_servers",
-                "osvbng_ha_switchover",
-                "osvbng_ue_sessions",
-                "osvbng_ue_session_status",
-                "osvbng_ue_session_range",
-                "osvbng_ue_session_create",
-                "osvbng_ue_session_delete",
-                "osvbng_ue_ping",
-                "osvbng_ue_curl",
-                "kubernetes_pods_list_in_namespace",
-                "kubernetes_events_list",
+                "bng_health",
+                "bng_running_config",
+                "bng_running_configs",
+                "ha_status",
+                "ha_sync",
+                "subscriber_sessions",
+                "cgnat_pools",
+                "cgnat_mappings",
+                "cgnat_sessions",
+                "radius_servers",
+                "ha_switchover",
+                "ue_sessions",
+                "ue_session_status",
+                "ue_session_range",
+                "ue_session_create",
+                "ue_session_delete",
+                "ue_ping",
+                "ue_curl",
             }
             missing = required.difference(names)
             if missing:
                 raise RuntimeError(f"missing tools: {sorted(missing)}")
 
-            health = await session.call_tool("osvbng_bng_health", {})
+            health = await session.call_tool("bng_health", {})
             running = await session.call_tool(
-                "osvbng_bng_running_config",
+                "bng_running_config",
                 {
                     "member": 0,
                     "section": "plugins.subscriber.auth.radius",
                 },
             )
             running_all = await session.call_tool(
-                "osvbng_bng_running_configs",
+                "bng_running_configs",
                 {"section": "ha"},
             )
-            status = await session.call_tool("osvbng_ha_status", {"member": 0})
-            pools = await session.call_tool("osvbng_cgnat_pools", {})
-            mappings = await session.call_tool("osvbng_cgnat_mappings", {})
+            status = await session.call_tool("ha_status", {"member": 0})
+            pools = await session.call_tool("cgnat_pools", {})
+            mappings = await session.call_tool("cgnat_mappings", {})
             ue_range = await session.call_tool(
-                "osvbng_ue_session_range",
+                "ue_session_range",
                 {"start_session_id": 1, "end_session_id": 10},
             )
             blocked = await session.call_tool(
-                "osvbng_ha_switchover", {"member": 0, "confirm": True}
+                "ha_switchover", {"member": 0, "confirm": True}
             )
             if blocked.isError is not True:
                 raise RuntimeError("mutating tool was not blocked")
@@ -98,20 +96,20 @@ async def main(url: str, lifecycle: bool) -> None:
 
             if lifecycle:
                 created = await session.call_tool(
-                    "osvbng_ue_session_create", {"session_id": 2, "confirm": True}
+                    "ue_session_create", {"session_id": 2, "confirm": True}
                 )
                 created_second = await session.call_tool(
-                    "osvbng_ue_session_create", {"session_id": 3, "confirm": True}
+                    "ue_session_create", {"session_id": 3, "confirm": True}
                 )
                 status = await session.call_tool(
-                    "osvbng_ue_session_status", {"session_id": 3}
+                    "ue_session_status", {"session_id": 3}
                 )
                 ping = await session.call_tool(
-                    "osvbng_ue_ping",
+                    "ue_ping",
                     {"session_id": 3, "destination": "10.255.0.1", "count": 3},
                 )
                 curl = await session.call_tool(
-                    "osvbng_ue_curl",
+                    "ue_curl",
                     {
                         "session_id": 3,
                         "url": "https://example.com",
@@ -119,10 +117,10 @@ async def main(url: str, lifecycle: bool) -> None:
                     },
                 )
                 deleted = await session.call_tool(
-                    "osvbng_ue_session_delete", {"session_id": 2, "confirm": True}
+                    "ue_session_delete", {"session_id": 2, "confirm": True}
                 )
                 deleted_second = await session.call_tool(
-                    "osvbng_ue_session_delete", {"session_id": 3, "confirm": True}
+                    "ue_session_delete", {"session_id": 3, "confirm": True}
                 )
                 result.update(
                     {

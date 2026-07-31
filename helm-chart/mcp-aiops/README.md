@@ -38,8 +38,8 @@ the packaged Helm artifact.
 
 ## Tools
 
-Agentgateway prefixes tools by backend: `osvbng_*` for the following domain
-tools and `kubernetes_*` for generic Kubernetes operations.
+The OSVBNG and Kubernetes servers use separate gateway paths so adding the
+Kubernetes backend does not rename or invalidate existing OSVBNG tools.
 
 - `bng_health`
 - `bng_running_config`
@@ -169,7 +169,7 @@ name as its base model. Open WebUI is configured to retain the upstream Ollama
 names without adding a connection prefix.
 
 Attach the `OSVBNG Operations` MCP connection to the curated model so live
-operations prompts automatically receive the nine governed OSVBNG tools. Open
+operations prompts automatically receive the governed OSVBNG tools. Open
 WebUI persists this attachment as `server:mcp:osvbng-operations`.
 Knowledge-base tools are not a replacement for live BNG health, HA, RADIUS,
 subscriber, or CGNAT queries.
@@ -200,6 +200,18 @@ Name: OSVBNG Operations
 
 The MCP connection remains inside the cluster and still traverses
 Agentgateway. Do not configure `mcp-osvbng-ops-proxy` directly in the UI.
+
+Add Kubernetes as a second External Tool and attach it to the same curated
+model when cluster diagnostics are wanted:
+
+```text
+Type: MCP (Streamable HTTP)
+URL:  http://osvbng-mcp-gateway/kubernetes/mcp
+Name: Kubernetes Operations
+```
+
+Open WebUI will expose those tools with its connection prefix while the
+existing `osvbng-operations_bng_running_config` name remains unchanged.
 
 For the lab deployment, administrator credentials may be stored in the
 non-chart Secret `osvbng-open-webui-admin`. Recover them locally without adding
