@@ -25,7 +25,7 @@ spec:
   podTemplateSpec:
     metadata:
       annotations:
-        checksum/config: {{ dict "readOnly" .Values.kubernetesMcp.readOnly "toolsets" .Values.kubernetesMcp.toolsets | toJson | sha256sum }}
+        checksum/config: {{ dict "readOnly" .Values.kubernetesMcp.readOnly "toolsets" .Values.kubernetesMcp.toolsets "guidanceVersion" .Values.kubernetesMcp.guidanceVersion | toJson | sha256sum }}
     spec:
       containers:
         - name: mcp

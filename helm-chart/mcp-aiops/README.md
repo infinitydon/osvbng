@@ -85,6 +85,12 @@ inventory, and resource reads. The Helm toolset is supported upstream but is
 disabled here; upstream currently provides install, list, and uninstall but
 not upgrade or rollback.
 
+Controller ownership must be read from `metadata.ownerReferences`, never from
+name patterns. For a Deployment pod, the expected chain is
+`Pod -> ReplicaSet -> Deployment`; StatefulSets and DaemonSets normally own
+their pods directly. The MCP server embeds this rule in both its server
+instructions and the `pods_get`/`resources_get` tool descriptions.
+
 ## Install
 
 Set the kubeconfig, install the pinned CRDs, and create a pull secret when the

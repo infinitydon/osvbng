@@ -7,6 +7,20 @@ data:
   config.toml: |
     read_only = {{ .Values.kubernetesMcp.readOnly }}
     toolsets = {{ toJson .Values.kubernetesMcp.toolsets }}
+    server_instructions = """
+    Use this server for live Kubernetes state only. Never infer a workload kind or
+    name from a pod name. To identify a pod's controller, get the pod and inspect
+    metadata.ownerReferences. If its owner is a ReplicaSet, get that ReplicaSet and
+    inspect its metadata.ownerReferences to find the Deployment. Report every link
+    in the observed owner chain and the exact final kind/name. StatefulSets normally
+    own their pods directly; a ReplicaSet is not a StatefulSet or Deployment.
+    """
+
+    [tool_overrides.pods_get]
+    description = "Get a pod by exact name and namespace. For controller questions, inspect metadata.ownerReferences; do not infer ownership from the pod name. If the owner is a ReplicaSet, call resources_get for that ReplicaSet to find its owning Deployment."
+
+    [tool_overrides.resources_get]
+    description = "Get a Kubernetes resource by group, version, kind, name, and namespace. Use this to traverse metadata.ownerReferences exactly. For a pod owned by a ReplicaSet, retrieve apps/v1 ReplicaSet and inspect its ownerReferences before reporting the Deployment."
 
     [[denied_resources]]
     group = ""

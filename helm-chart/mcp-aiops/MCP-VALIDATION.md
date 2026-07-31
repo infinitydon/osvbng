@@ -169,6 +169,18 @@ same namespace. Both must succeed. A `resources_get` call for `v1/Secret` must f
 `resource not allowed`, and the tool list must contain no Kubernetes create,
 update, delete, scale, exec, run, Helm install, or Helm uninstall tools.
 
+Validate controller traversal with a current FRR pod name:
+
+```text
+What Deployment owns pod <frr-pod-name> in namespace osvbng-ha? Show the complete owner chain.
+```
+
+Expected calls: `pods_get`, followed by `resources_get` when the pod owner is a
+ReplicaSet. Expected answer format:
+`Pod/<pod> -> ReplicaSet/<replicaset> -> Deployment/<deployment>`. The agent
+must not identify the ReplicaSet hash as the Deployment or call it a
+StatefulSet.
+
 An SDK message such as `Session termination failed: 202` can appear after the
 JSON result. It concerns session cleanup and does not invalidate the successful
 tool checks above.
