@@ -4,7 +4,7 @@ The Kubernetes implementation is split into independent charts:
 
 - `bng`: osvbng, VFIO/DPDK, HA, CGNAT, subscriber testing, and the optional
   FreeRADIUS/PostgreSQL profile.
-- `frr-isp`: optional routed-CGNAT ISP edge with two-router unicast-VRRP HA.
+- `frr-isp`: optional routed-CGNAT ISP edge with two-router eBGP ECMP.
 - `mcp-aiops`: Agentgateway, ToolHive, and the osvbng MCP operations server.
 
 Install and upgrade each chart as a separate Helm release. The MCP chart reads

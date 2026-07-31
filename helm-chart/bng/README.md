@@ -101,7 +101,7 @@ osvbng:
 # Two BNG replicas
 osvbng:
   core:
-    nextHop: 172.31.255.1
+    installDefaultRoute: false
   ha:
     enabled: true
     members:
@@ -249,7 +249,7 @@ The tested HA allocation is:
 
 - BNG A identity: `osvbng-0`, core `172.31.255.2/29`
 - BNG B identity: `osvbng-1`, core `172.31.255.3/29`
-- shared FRR next hop: `172.31.255.1`
+- FRR ECMP next hops: `172.31.255.4` and `.5`
 - FRR member core addresses: `172.31.255.4` and `.5`
 - routed PBA CGNAT pool: `100.64.100.0/24`
 - FRR upstream addresses: `192.168.88.250` and `.251`
@@ -324,8 +324,8 @@ UE 10.255.0.2
   -> active osvbng SRG
   -> PBA CGNAT 100.64.100.0/24
   -> BNG DPDK core 172.31.255.2 or .3
-  -> shared FRR next hop 172.31.255.1
-  -> FRR member 192.168.88.250 or .251
+  -> eBGP ECMP via FRR core 172.31.255.4 or .5
+  -> FRR uplink 192.168.88.250 or .251
   -> MikroTik 192.168.88.1
   -> Internet
 ```

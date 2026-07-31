@@ -1,7 +1,8 @@
 # Apply this file to the sibling BNG chart when using the default FRR profile.
 osvbng:
   core:
-    nextHop: 172.31.255.1
+    # The default route is learned from both FRRs over eBGP.
+    installDefaultRoute: false
   bgp:
     enabled: true
     localAs: 65010

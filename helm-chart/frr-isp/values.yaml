@@ -4,11 +4,6 @@ image:
   digest: "sha256:a0ed0e4f8727631c8303dd9a4e8199b47464a17a5253135a2c622286aeaec46b"
   pullPolicy: IfNotPresent
 
-ha:
-  enabled: true
-  coreVip: 172.31.255.1/29
-  keepalivedImage: alpine:3.22.1
-
 upstream:
   gateway: 192.168.88.1
   bgp:
@@ -46,19 +41,19 @@ macvlan:
 
 members:
   - name: a
-    priority: 150
-    peerCoreAddress: 172.31.255.5
     core:
       address: 172.31.255.4/29
+      mac: "02:31:ff:00:00:04"
     uplink:
       address: 192.168.88.250/24
+      mac: "02:31:ff:00:00:fa"
   - name: b
-    priority: 100
-    peerCoreAddress: 172.31.255.4
     core:
       address: 172.31.255.5/29
+      mac: "02:31:ff:00:00:05"
     uplink:
       address: 192.168.88.251/24
+      mac: "02:31:ff:00:00:fb"
 
 resources:
   requests:

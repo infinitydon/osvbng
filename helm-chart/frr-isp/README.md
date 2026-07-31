@@ -10,10 +10,8 @@ This optional chart proves that the CGNAT pool does not need to share the
 OSVBNG core subnet. It provides an FRR 10.7.0 ISP edge with VirtIO-backed
 Multus macvlan interfaces.
 
-The default HA profile uses unicast VRRP (Keepalived) because some virtual
-switches suppress VRRP multicast between VirtIO ports:
+The default HA profile uses eBGP ECMP rather than VRRP:
 
-- BNG-facing VIP: `172.31.255.1/29`
 - FRR member core addresses: `172.31.255.4` and `.5`
 - FRR member upstream addresses: `192.168.88.250` and `.251`
 - routed lab CGNAT pool: `100.64.100.0/24`
@@ -29,8 +27,8 @@ The default routing profile uses eBGP:
 - the ISP routers advertise only the routed CGNAT prefix to the MikroTik
 - only the BNG whose SRG is active originates the subscriber and CGNAT
   prefixes
-- both ISP routers retain the learned route, independently of which router
-  currently owns the VRRP VIP
+- both ISP routers retain the learned route independently
+- each BNG imports only `0.0.0.0/0` and installs both FRR next hops in VPP
 
 Both FRR pods use required node affinity for
 `osvbng.infinitydon.com/bng-frr-ha=true` and required hostname anti-affinity.
@@ -38,18 +36,20 @@ This is the same eligible worker pool used by the BNG StatefulSet. Both core
 and upstream macvlan attachments use the single `enp8s19` parent; there is no
 `nodeName` pinning.
 
-There is no upstream VRRP VIP. MikroTik peers with and installs ECMP paths
-through the two member addresses (`.250` and `.251`). Keepalived owns only
-the BNG-facing core next hop, `172.31.255.1`.
+There are no VRRP VIPs. MikroTik installs ECMP paths through `.250` and `.251`,
+and each BNG installs ECMP defaults through `172.31.255.4` and `.5`.
+The FRR macvlan interfaces use stable explicit MAC addresses so BGP can
+re-establish immediately after a pod replacement. Proxy ARP is disabled; it
+must remain disabled because core and uplink VirtIO interfaces share one L2.
 
 OSVBNG 0.16 natively associates the prefixes under
 `ha.srgs.default.networks` with SRG state. It originates those prefixes while
 the SRG is `ACTIVE` or `ACTIVE_SOLO` and withdraws them in standby states.
 The ISP routers do not query the Kubernetes or OSVBNG APIs.
 
-The BNG profile applies an explicit `OSVBNG-EXPORT` route policy to its eBGP
-neighbors. Production deployments should narrow that policy with prefix sets
-for the exact subscriber and CGNAT allocations.
+The BNG profile applies `OSVBNG-IMPORT-DEFAULT` to accept only the default
+route and `OSVBNG-EXPORT` to its eBGP neighbors. Production deployments should
+also narrow the export policy to the exact subscriber and CGNAT allocations.
 
 When `bgp.enabled` is `false`, the chart installs a static fallback route for
 `cgnat.prefix` through `cgnat.staticNextHop`. Set the next hop to the core
@@ -57,9 +57,10 @@ address of the BNG that should receive traffic in non-BGP mode. This fallback
 does not provide automatic BNG failover.
 
 `bng-values.yaml` is an integration values file for the separate `bng` Helm
-release. It moves the BNG core interfaces to the transit subnet, enables the
-BGP peers, disables proxy ARP, and keeps the CGNAT addresses in the routed
-pool. The FRR chart cannot change another Helm release's values.
+release. It moves the BNG core interfaces to the transit subnet, disables the
+static default route, enables both BGP peers, disables proxy ARP, and keeps the
+CGNAT addresses in the routed pool. The FRR chart cannot change another Helm
+release's values.
 
 ## HA behavior in this Kubernetes lab
 
@@ -106,5 +107,6 @@ During a tested hard loss of the active BNG, OSVBNG 0.16 placed the remaining
 member in `STANDBY_ALONE` rather than `ACTIVE`. The sidecar deliberately
 withdraws the prefix in that state, preventing return traffic from being sent
 to a standby dataplane. FRR-router failover is independently functional and
-was validated without UE packet loss. BNG automatic promotion requires an
+was validated with all 20 UE probes passing after one router was removed and
+again after it rejoined. BNG automatic promotion requires an
 upstream OSVBNG HA change or a supported witness/fencing design.

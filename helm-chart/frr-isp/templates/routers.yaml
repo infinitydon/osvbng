@@ -82,25 +82,6 @@ data:
     {{- else }}
     ip route {{ $root.Values.cgnat.prefix }} {{ required "cgnat.staticNextHop is required when BGP is disabled" $root.Values.cgnat.staticNextHop }} 20
     {{- end }}
-  keepalived.conf: |
-    global_defs {
-      router_id FRR_ISP_{{ upper $member.name }}
-      enable_script_security
-    }
-    vrrp_instance OSVBNG_ISP {
-      state BACKUP
-      interface core
-      virtual_router_id 51
-      priority {{ $member.priority }}
-      advert_int 1
-      unicast_src_ip {{ regexReplaceAll "/.*" $member.core.address "" }}
-      unicast_peer {
-        {{ $member.peerCoreAddress }}
-      }
-      virtual_ipaddress {
-        {{ $root.Values.ha.coreVip }} dev core
-      }
-    }
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -122,10 +103,10 @@ spec:
         app.kubernetes.io/component: router
         app.kubernetes.io/instance: {{ $member.name }}
       annotations:
-        checksum/config: {{ dict "member" $member "bgp" $root.Values.bgp "cgnat" $root.Values.cgnat "upstream" $root.Values.upstream "ha" $root.Values.ha | toJson | sha256sum }}
+        checksum/config: {{ dict "member" $member "bgp" $root.Values.bgp "cgnat" $root.Values.cgnat "upstream" $root.Values.upstream | toJson | sha256sum }}
         k8s.v1.cni.cncf.io/networks: >-
-          [{"name":{{ printf "%s-core-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"core"},
-           {"name":{{ printf "%s-uplink-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"uplink"}]
+          [{"name":{{ printf "%s-core-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"core","mac":{{ $member.core.mac | quote }}},
+           {"name":{{ printf "%s-uplink-%s" (include "frr.fullname" $root) $member.name | quote }},"interface":"uplink","mac":{{ $member.uplink.mac | quote }}}]
     spec:
       affinity:
         nodeAffinity:
@@ -163,7 +144,7 @@ spec:
               sysctl -w net.ipv4.conf.all.send_redirects=0
               sysctl -w net.ipv4.conf.core.send_redirects=0
               sysctl -w net.ipv4.conf.uplink.send_redirects=0
-              sysctl -w net.ipv4.conf.uplink.proxy_arp=1
+              sysctl -w net.ipv4.conf.uplink.proxy_arp=0
               ip route del default 2>/dev/null || true
               {{- if not $root.Values.upstream.bgp.enabled }}
               ip route replace default via {{ $root.Values.upstream.gateway }} dev uplink metric 10
@@ -180,21 +161,6 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /etc/frr
-        {{- if $root.Values.ha.enabled }}
-        - name: keepalived
-          image: {{ $root.Values.ha.keepalivedImage }}
-          securityContext:
-            capabilities:
-              add: ["NET_ADMIN", "NET_RAW", "NET_BROADCAST"]
-          command: ["/bin/sh", "-ec"]
-          args:
-            - |
-              apk add --no-cache keepalived
-              exec keepalived --dont-fork --log-console --use-file=/etc/frr/keepalived.conf
-          volumeMounts:
-            - name: config
-              mountPath: /etc/frr
-        {{- end }}
       volumes:
         - name: config
           configMap:
