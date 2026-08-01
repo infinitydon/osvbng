@@ -168,20 +168,24 @@ helm upgrade --install osvbng-aiops .\helm-chart\mcp-aiops `
   --set 'osvbngMcp.imagePullSecrets[0].name=ghcr-pull'
 ```
 
-The Gateway Service defaults to `NodePort` port `30080`. Access it through the
-IP address of any reachable Kubernetes node:
+The Agentgateway Service defaults to `ClusterIP` and is intentionally reachable
+only inside the cluster. Open WebUI reaches it at
+`http://osvbng-mcp-gateway`. For temporary administrator validation, use a
+local port-forward:
 
-```shell
-curl -H "Authorization: Bearer <noc-key>" http://<node-ip>:30080/mcp/noc
+```powershell
+kubectl port-forward -n osvbng-aiops service/osvbng-mcp-gateway 30080:80
+curl -H "Authorization: Bearer <noc-key>" http://127.0.0.1:30080/mcp/noc
 ```
 
 The authenticated endpoints are `/mcp/noc` and `/mcp/admin`; exact `/mcp`
-aliases NOC. Override `gateway.nodePort` if port `30080` is unavailable.
+aliases NOC. The port-forward is diagnostic access only and ends when its
+`kubectl` process stops.
 
 The authenticated Ollama Cloud endpoint is:
 
 ```text
-http://<node-ip>:30080/v1/chat/completions
+http://osvbng-mcp-gateway/v1/chat/completions
 ```
 
 The Ollama credential is not exposed to clients. Agentgateway validates the

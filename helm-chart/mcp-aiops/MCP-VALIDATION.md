@@ -119,23 +119,23 @@ Agentgateway exposes authenticated `/mcp/noc` and `/mcp/admin` OSVBNG
 endpoints. Exact `/mcp` is a compatibility alias for NOC. Kubernetes remains
 at `/kubernetes/mcp`.
 
-Find a reachable worker-node address and confirm the allocated NodePort:
+Confirm that Agentgateway is internal-only, then start a temporary local
+port-forward in a separate terminal:
 
 ```powershell
-kubectl get nodes -o wide
 kubectl get service osvbng-mcp-gateway -n osvbng-aiops
+kubectl port-forward -n osvbng-aiops service/osvbng-mcp-gateway 30080:80
 ```
 
 Expected output:
 
 ```text
-NAME                  TYPE       CLUSTER-IP       EXTERNAL-IP   PORT(S)
-osvbng-mcp-gateway    NodePort   <cluster-ip>     <none>        80:30080/TCP
+NAME                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)
+osvbng-mcp-gateway    ClusterIP   <cluster-ip>     <none>        80/TCP
 ```
 
 Install the client dependencies if needed and run the deterministic validation
-client. Replace `<node-ip>` with a reachable address from `kubectl get nodes
--o wide`:
+client through the local port-forward:
 
 ```powershell
 cd helm-chart\mcp-aiops\development
@@ -147,7 +147,7 @@ $env:MCP_API_KEY = [Text.Encoding]::UTF8.GetString(
   [Convert]::FromBase64String($encoded)
 )
 .\.venv\Scripts\python e2e_client.py `
-  --url http://<node-ip>:30080/mcp/noc --profile noc
+  --url http://127.0.0.1:30080/mcp/noc --profile noc
 ```
 
 Expected output:
@@ -200,7 +200,7 @@ tool error (`Unknown tool` on the deployed `v1.4.0` dataplane).
 
 Requests without a key, or with the NOC key sent to `/mcp/admin`, must return
 HTTP `401`. Repeat with the value from `osvbng-mcp-admin-client-key` and
-`--url http://<node-ip>:30080/mcp/admin --profile admin`. The admin result must
+`--url http://127.0.0.1:30080/mcp/admin --profile admin`. The admin result must
 include `bng_running_config`, `ue_session_create`, `ue_session_delete`, and
 `ha_switchover`. The validation client never invokes those mutation tools.
 
@@ -218,7 +218,7 @@ kubectl get mcpserver kubernetes-ops -n osvbng-aiops
 kubectl logs -n osvbng-aiops kubernetes-ops-0 --tail=50
 ```
 
-Through `http://<node-ip>:30080/kubernetes/mcp`, call
+Through `http://127.0.0.1:30080/kubernetes/mcp`, call
 `pods_list` to list pods across namespaces, `pods_list_in_namespace` with
 `namespace=osvbng-ha`, and `events_list` with the same namespace. All must
 succeed when `clusterWideReadOnly=true`. A `resources_get` call for `v1/Secret` must fail with
@@ -257,7 +257,7 @@ Run the governed two-UE lifecycle and traffic validation:
 
 ```powershell
 .\.venv\Scripts\python e2e_client.py `
-  --url http://<node-ip>:30080/mcp/admin `
+  --url http://127.0.0.1:30080/mcp/admin `
   --profile admin `
   --lifecycle
 ```
@@ -371,7 +371,7 @@ agentgatewaypolicy/ollama-cloud-client-auth         ACCEPTED=True ATTACHED=True
 Set the test request without displaying either credential:
 
 ```powershell
-$uri = 'http://<node-ip>:30080/v1/chat/completions'
+$uri = 'http://127.0.0.1:30080/v1/chat/completions'
 $body = @{
   model = 'qwen3.5:cloud'
   messages = @(@{

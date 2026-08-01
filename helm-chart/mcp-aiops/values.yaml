@@ -230,9 +230,10 @@ kubernetesMcp:
 gateway:
   enabled: true
   name: osvbng-mcp-gateway
-  serviceType: NodePort
+  # Agentgateway is an internal AI/MCP dataplane. Open WebUI is the only
+  # user-facing NodePort and reaches this Service through cluster DNS.
+  serviceType: ClusterIP
   port: 80
-  nodePort: 30080
 
 ollamaCloud:
   enabled: true
