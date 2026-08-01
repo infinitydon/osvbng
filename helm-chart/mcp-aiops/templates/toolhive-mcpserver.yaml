@@ -2,7 +2,7 @@
 {{- $root := . }}
 {{- range $profileName, $profile := .Values.osvbngMcp.profiles }}
 {{- if $profile.enabled }}
-{{- if $profile.tools }}
+{{- if and $profile.tools $profile.enforceToolsAtToolHive }}
 apiVersion: toolhive.stacklok.dev/v1beta1
 kind: MCPToolConfig
 metadata:
@@ -19,7 +19,7 @@ metadata:
 spec:
   image: {{ $root.Values.osvbngMcp.image | quote }}
   serviceAccount: {{ $root.Values.osvbngMcp.serviceAccountName }}
-  {{- if $profile.tools }}
+  {{- if and $profile.tools $profile.enforceToolsAtToolHive }}
   toolConfigRef:
     name: {{ $profile.serverName }}-tools
   {{- end }}

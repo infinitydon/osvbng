@@ -190,11 +190,13 @@ Expected results:
 - the CEL expression contains the configured NOC tool names; and
 - status conditions report `Accepted=True` and `Attached=True`.
 
-This policy is generated from the same `osvbngMcp.profiles.noc.tools` value as
-the ToolHive `MCPToolConfig`, avoiding a second manually maintained allowlist.
-The isolation test for chart `0.4.5` left ToolHive at 22 tools, temporarily
-limited only Agentgateway to `bng_health`, and observed exactly one tool from
-the client. Restoring the generated policy returned all 22 NOC tools.
+This policy is generated from `osvbngMcp.profiles.noc.tools`. With the default
+`enforceToolsAtToolHive: false`, ToolHive exposes the server's complete tool
+set and Agentgateway alone filters the NOC endpoint. Validate both paths: a
+direct ToolHive `tools/list` must include admin tools, while the Agentgateway
+NOC route must return only the configured NOC set. An explicit call to one of
+the filtered tools through Agentgateway must return its native unauthorized
+tool error (`Unknown tool` on the deployed `v1.4.0` dataplane).
 
 Requests without a key, or with the NOC key sent to `/mcp/admin`, must return
 HTTP `401`. Repeat with the value from `osvbng-mcp-admin-client-key` and

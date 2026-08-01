@@ -153,6 +153,9 @@ osvbngMcp:
       clientAuth:
         enabled: true
         secretName: osvbng-mcp-noc-client-key
+      # Agentgateway is the authorization boundary. Keep ToolHive unfiltered so
+      # direct-vs-gateway validation can prove which layer enforces access.
+      enforceToolsAtToolHive: false
       tools:
         - bng_health
         - ha_status

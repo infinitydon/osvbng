@@ -268,15 +268,19 @@ denial wording.
 
 This wording policy improves the response but is not the authorization
 boundary. The NOC tool list in `osvbngMcp.profiles.noc.tools` is rendered into
-both the ToolHive `MCPToolConfig` allowlist and an Agentgateway
-`AgentgatewayPolicy`. Agentgateway filters `tools/list` and rejects calls to
+an Agentgateway `AgentgatewayPolicy`. By default, ToolHive does not filter this
+profile (`enforceToolsAtToolHive: false`), making Agentgateway the tool-access
+authorization boundary. Agentgateway filters `tools/list` and rejects calls to
 tools outside that list. Disabled mutation environment flags, the Open WebUI
 group grant, and the separately authenticated Agentgateway route provide
-additional layers. A client that explicitly calls a filtered tool receives
-Agentgateway's native `unauthorized tool call` protocol error. Agentgateway
-also removes that tool from discovery, so an MCP client that only calls
-discovered tools will not normally attempt it. Neither authorization nor a
-denial response is implemented in Python or in the model prompt.
+defense in depth. Agentgateway also removes denied tools from discovery and
+rejects explicit calls. The deployed `v1.4.0` dataplane returns its native
+`Unknown tool` JSON-RPC error for a filtered tool; newer documentation examples
+show `unauthorized tool call`. An MCP client that only calls discovered tools
+will not normally attempt the filtered tool. Neither authorization nor a denial
+response is implemented in Python or in the model prompt. Set
+`enforceToolsAtToolHive: true` only when deliberately adding a second,
+independent ToolHive allowlist.
 
 The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
 require the NOC key; unauthenticated requests are rejected.
