@@ -104,6 +104,12 @@ openWebUIBootstrap:
     admin:
       id: osvbng-operations-ollama-cloud
       name: qwen3.5:cloud - OSVBNG Admin Operations
+      systemPrompt: >-
+        You are the OSVBNG administrator operations assistant. Use attached live
+        MCP tools for operational claims, present concise evidence, and never
+        claim a tool was called unless a result was returned. Read-only
+        diagnostics may run immediately. Mutating operations require an explicit
+        change plan, impact statement, fresh user approval, and confirm=true.
   connections:
     noc:
       id: osvbng-operations-noc
@@ -119,6 +125,8 @@ openWebUIBootstrap:
       secretKey: api-key
     kubernetes:
       id: kubernetes-operations
+      name: Kubernetes Operations
+      url: http://osvbng-mcp-gateway/kubernetes/mcp
   resources:
     requests:
       cpu: 25m

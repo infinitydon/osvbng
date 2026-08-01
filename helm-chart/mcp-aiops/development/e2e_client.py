@@ -133,7 +133,7 @@ async def main(url: str, lifecycle: bool, profile: str) -> None:
                 "cgnat_mapping_count": (
                     len(
                         mappings.structuredContent.get("result", {})
-                        .get("data", [])
+                        .get("data") or []
                     )
                     if mappings.structuredContent
                     else None

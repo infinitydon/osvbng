@@ -98,7 +98,11 @@ data:
     )
 
     config = call("/api/v1/configs/tool_servers", token=token)
-    managed_ids = {os.environ["NOC_CONNECTION_ID"], os.environ["ADMIN_CONNECTION_ID"]}
+    managed_ids = {
+        os.environ["NOC_CONNECTION_ID"],
+        os.environ["ADMIN_CONNECTION_ID"],
+        os.environ["KUBERNETES_CONNECTION_ID"],
+    }
     preserved = [
         connection
         for connection in config.get("TOOL_SERVER_CONNECTIONS", [])
@@ -139,9 +143,27 @@ data:
             "description": "Administrator OSVBNG operational tools",
         },
     }
+    kubernetes_connection = {
+        "url": os.environ["KUBERNETES_MCP_URL"],
+        "path": "",
+        "type": "mcp",
+        "auth_type": "none",
+        "headers": None,
+        "key": "",
+        "config": {"enable": True, "access_grants": []},
+        "info": {
+            "id": os.environ["KUBERNETES_CONNECTION_ID"],
+            "name": os.environ["KUBERNETES_CONNECTION_NAME"],
+            "description": "Read-only Kubernetes inventory and diagnostics",
+        },
+    }
     call(
         "/api/v1/configs/tool_servers",
-        {"TOOL_SERVER_CONNECTIONS": preserved + [noc_connection, admin_connection]},
+        {"TOOL_SERVER_CONNECTIONS": preserved + [
+            noc_connection,
+            admin_connection,
+            kubernetes_connection,
+        ]},
         token,
     )
 
@@ -165,7 +187,11 @@ data:
             return call("/api/v1/models/model/update", form, token)
         except RuntimeError as error:
             message = str(error).lower()
-            if "not_found" not in message and "not found" not in message:
+            if (
+                "not_found" not in message
+                and "not found" not in message
+                and "could not find" not in message
+            ):
                 raise
             return call("/api/v1/models/create", form, token)
 
@@ -175,8 +201,10 @@ data:
 
     existing_models = {model.get("id"): model for model in models}
     admin_model_id = os.environ["ADMIN_MODEL_ID"]
-    admin_params = dict((existing_models.get(admin_model_id) or {}).get("params") or {})
-    admin_params.setdefault("temperature", 0.1)
+    admin_params = {
+        "system": os.environ["ADMIN_SYSTEM_PROMPT"],
+        "temperature": 0.1,
+    }
     forms = [
         {
             "id": os.environ["NOC_MODEL_ID"],
@@ -260,6 +288,7 @@ spec:
             - {name: NOC_SYSTEM_PROMPT, value: {{ .Values.openWebUIBootstrap.models.noc.systemPrompt | quote }}}
             - {name: ADMIN_MODEL_ID, value: {{ .Values.openWebUIBootstrap.models.admin.id | quote }}}
             - {name: ADMIN_MODEL_NAME, value: {{ .Values.openWebUIBootstrap.models.admin.name | quote }}}
+            - {name: ADMIN_SYSTEM_PROMPT, value: {{ .Values.openWebUIBootstrap.models.admin.systemPrompt | quote }}}
             - {name: NOC_CONNECTION_ID, value: {{ .Values.openWebUIBootstrap.connections.noc.id | quote }}}
             - {name: NOC_CONNECTION_NAME, value: {{ .Values.openWebUIBootstrap.connections.noc.name | quote }}}
             - {name: NOC_MCP_URL, value: {{ .Values.openWebUIBootstrap.connections.noc.url | quote }}}
@@ -267,6 +296,8 @@ spec:
             - {name: ADMIN_CONNECTION_NAME, value: {{ .Values.openWebUIBootstrap.connections.admin.name | quote }}}
             - {name: ADMIN_MCP_URL, value: {{ .Values.openWebUIBootstrap.connections.admin.url | quote }}}
             - {name: KUBERNETES_CONNECTION_ID, value: {{ .Values.openWebUIBootstrap.connections.kubernetes.id | quote }}}
+            - {name: KUBERNETES_CONNECTION_NAME, value: {{ .Values.openWebUIBootstrap.connections.kubernetes.name | quote }}}
+            - {name: KUBERNETES_MCP_URL, value: {{ .Values.openWebUIBootstrap.connections.kubernetes.url | quote }}}
           volumeMounts:
             - name: script
               mountPath: /bootstrap
