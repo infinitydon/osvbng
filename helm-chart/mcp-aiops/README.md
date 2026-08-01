@@ -261,6 +261,12 @@ The admin connection and model have no grants, which keeps them
 administrator-only. The MCP connections remain inside the cluster and still
 traverse Agentgateway.
 
+The bootstrap also persists `osvbng-noc-ollama-cloud` as the managed NOC
+account's user-level default model. Open WebUI applies this setting before the
+instance-wide `DEFAULT_MODELS` fallback, so a new NOC chat opens with the NOC
+profile while administrators retain `osvbng-operations-ollama-cloud` as their
+default.
+
 The curated NOC model uses the configurable system policy at
 `openWebUIBootstrap.models.noc.systemPrompt`. It contains operational grounding
 and user-facing presentation guidance. When a requested capability is not

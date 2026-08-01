@@ -234,10 +234,27 @@ data:
     ]
     for form in forms:
         upsert_model(form)
+
+    # Open WebUI applies the signed-in user's persisted model selection before
+    # falling back to the instance-wide DEFAULT_MODELS value. Reconcile the
+    # managed NOC account explicitly so new NOC chats use the least-privileged
+    # curated model while administrators retain the global admin default.
+    noc_token = call(
+        "/api/v1/auths/signin",
+        {"email": noc_email, "password": os.environ["NOC_PASSWORD"]},
+    )["token"]
+    noc_settings = call("/api/v1/users/user/settings", token=noc_token) or {}
+    noc_settings["models"] = [os.environ["NOC_MODEL_ID"]]
+    noc_settings = call(
+        "/api/v1/users/user/settings/update",
+        noc_settings,
+        noc_token,
+    )
     print(json.dumps({
         "configured": True,
         "nocGroup": group_name,
         "models": [form["id"] for form in forms],
+        "nocDefaultModels": noc_settings.get("models", []),
         "connections": sorted(managed_ids),
     }))
 ---
