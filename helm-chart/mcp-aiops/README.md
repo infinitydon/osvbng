@@ -263,10 +263,12 @@ traverse Agentgateway.
 
 The curated NOC model uses the configurable system policy at
 `openWebUIBootstrap.models.noc.systemPrompt`. It contains operational grounding
-only. Authorization and denial are not implemented as prompt instructions or
-denial wording.
+and user-facing presentation guidance. When a requested capability is not
+exposed to the NOC profile, the model gives a short, friendly explanation and
+offers permitted operational checks. This wording does not enumerate protected
+tools, implement authorization, or claim that a denied tool call occurred.
 
-This wording policy improves the response but is not the authorization
+This presentation guidance improves the response but is not the authorization
 boundary. The NOC tool list in `osvbngMcp.profiles.noc.tools` is rendered into
 an Agentgateway `AgentgatewayPolicy`. By default, ToolHive does not filter this
 profile (`enforceToolsAtToolHive: false`), making Agentgateway the tool-access
