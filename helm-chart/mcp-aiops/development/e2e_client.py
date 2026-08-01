@@ -172,6 +172,13 @@ async def main(url: str, lifecycle: bool, profile: str) -> None:
                         "max_time": 15,
                     },
                 )
+                await asyncio.sleep(1)
+                active_mappings = await session.call_tool("cgnat_mappings", {})
+                active_mapping_data = (
+                    active_mappings.structuredContent.get("result", {}).get("data") or []
+                    if active_mappings.structuredContent
+                    else []
+                )
                 deleted = await session.call_tool(
                     "ue_session_delete", {"session_id": 2, "confirm": True}
                 )
@@ -185,6 +192,8 @@ async def main(url: str, lifecycle: bool, profile: str) -> None:
                         "ue_status_error": status.isError,
                         "ue_ping_error": ping.isError,
                         "ue_curl_error": curl.isError,
+                        "active_cgnat_mappings_error": active_mappings.isError,
+                        "active_cgnat_mapping_count": len(active_mapping_data),
                         "ue_delete_error": deleted.isError,
                         "ue_second_delete_error": deleted_second.isError,
                     }
