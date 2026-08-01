@@ -266,8 +266,10 @@ account's user-level default model. Open WebUI applies this setting before the
 instance-wide `DEFAULT_MODELS` fallback, so a new NOC chat opens with the NOC
 profile while administrators retain `osvbng-operations-ollama-cloud` as their
 default. The raw `qwen3.5:cloud` provider model and curated administrator model
-remain administrator-only; this prevents browser session state from selecting
-an ungoverned base model for the NOC account.
+are hidden and administrator-only respectively. NOC retains inference access to
+the hidden raw model because Open WebUI must resolve it when executing the
+derived NOC model, but browser session state cannot select it from the model
+selector.
 
 The curated NOC model uses the configurable system policy at
 `openWebUIBootstrap.models.noc.systemPrompt`. It contains operational grounding

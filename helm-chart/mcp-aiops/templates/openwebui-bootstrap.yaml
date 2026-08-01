@@ -173,12 +173,16 @@ data:
         "id": base_model,
         "base_model_id": None,
         "name": base_model,
-        "meta": {},
+        # Derived models still require the caller to have inference access to
+        # their base model. Mark it hidden so it remains resolvable but is not
+        # offered in the NOC model selector.
+        "meta": {"hidden": True},
         "params": {},
-        # Keep the raw provider model administrator-only. NOC users receive
-        # the curated derived model below, which carries the governed tools
-        # and operations-specific system policy.
-        "access_grants": [],
+        "access_grants": [{
+            "principal_type": "group",
+            "principal_id": noc_group["id"],
+            "permission": "read",
+        }],
         "is_active": True,
     }
     def upsert_model(form):
@@ -255,22 +259,35 @@ data:
         os.environ["NOC_MODEL_ID"],
         os.environ["ADMIN_MODEL_ID"],
     }
-    noc_visible_managed_models = sorted(
+    noc_accessible_managed_models = sorted(
         model.get("id")
         for model in noc_catalog
         if model.get("id") in managed_model_ids
     )
+    noc_visible_managed_models = sorted(
+        model.get("id")
+        for model in noc_catalog
+        if model.get("id") in managed_model_ids
+        and not (((model.get("info") or {}).get("meta") or {}).get("hidden", False))
+    )
+    expected_accessible_models = sorted([base_model, os.environ["NOC_MODEL_ID"]])
     expected_noc_models = [os.environ["NOC_MODEL_ID"]]
-    if noc_visible_managed_models != expected_noc_models:
+    if (
+        noc_accessible_managed_models != expected_accessible_models
+        or noc_visible_managed_models != expected_noc_models
+    ):
         raise RuntimeError(
-            "unexpected NOC managed model visibility: "
-            f"{noc_visible_managed_models}; expected {expected_noc_models}"
+            "unexpected NOC managed model access/visibility: "
+            f"accessible={noc_accessible_managed_models}, "
+            f"visible={noc_visible_managed_models}; expected "
+            f"accessible={expected_accessible_models}, visible={expected_noc_models}"
         )
     print(json.dumps({
         "configured": True,
         "nocGroup": group_name,
         "models": [form["id"] for form in forms],
         "nocDefaultModels": noc_settings.get("models", []),
+        "nocAccessibleManagedModels": noc_accessible_managed_models,
         "nocVisibleManagedModels": noc_visible_managed_models,
         "connections": sorted(managed_ids),
     }))
