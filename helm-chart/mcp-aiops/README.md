@@ -265,7 +265,9 @@ The bootstrap also persists `osvbng-noc-ollama-cloud` as the managed NOC
 account's user-level default model. Open WebUI applies this setting before the
 instance-wide `DEFAULT_MODELS` fallback, so a new NOC chat opens with the NOC
 profile while administrators retain `osvbng-operations-ollama-cloud` as their
-default.
+default. The raw `qwen3.5:cloud` provider model and curated administrator model
+remain administrator-only; this prevents browser session state from selecting
+an ungoverned base model for the NOC account.
 
 The curated NOC model uses the configurable system policy at
 `openWebUIBootstrap.models.noc.systemPrompt`. It contains operational grounding

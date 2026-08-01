@@ -175,11 +175,10 @@ data:
         "name": base_model,
         "meta": {},
         "params": {},
-        "access_grants": [{
-            "principal_type": "group",
-            "principal_id": noc_group["id"],
-            "permission": "read",
-        }],
+        # Keep the raw provider model administrator-only. NOC users receive
+        # the curated derived model below, which carries the governed tools
+        # and operations-specific system policy.
+        "access_grants": [],
         "is_active": True,
     }
     def upsert_model(form):
@@ -250,11 +249,29 @@ data:
         noc_settings,
         noc_token,
     )
+    noc_catalog = call("/api/models", token=noc_token).get("data", [])
+    managed_model_ids = {
+        base_model,
+        os.environ["NOC_MODEL_ID"],
+        os.environ["ADMIN_MODEL_ID"],
+    }
+    noc_visible_managed_models = sorted(
+        model.get("id")
+        for model in noc_catalog
+        if model.get("id") in managed_model_ids
+    )
+    expected_noc_models = [os.environ["NOC_MODEL_ID"]]
+    if noc_visible_managed_models != expected_noc_models:
+        raise RuntimeError(
+            "unexpected NOC managed model visibility: "
+            f"{noc_visible_managed_models}; expected {expected_noc_models}"
+        )
     print(json.dumps({
         "configured": True,
         "nocGroup": group_name,
         "models": [form["id"] for form in forms],
         "nocDefaultModels": noc_settings.get("models", []),
+        "nocVisibleManagedModels": noc_visible_managed_models,
         "connections": sorted(managed_ids),
     }))
 ---
