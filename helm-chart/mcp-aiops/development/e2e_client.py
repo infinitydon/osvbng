@@ -8,7 +8,12 @@ from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
 
 
-async def main(url: str, lifecycle: bool, profile: str) -> None:
+async def main(
+    url: str,
+    lifecycle: bool,
+    profile: str,
+    list_only: bool = False,
+) -> None:
     token = os.environ.get("MCP_API_KEY")
     headers = {"Authorization": f"Bearer {token}"} if token else None
     async with httpx.AsyncClient(headers=headers) as http_client:
@@ -17,6 +22,9 @@ async def main(url: str, lifecycle: bool, profile: str) -> None:
             await session.initialize()
             tools = await session.list_tools()
             names = sorted(tool.name for tool in tools.tools)
+            if list_only:
+                print(json.dumps({"profile": profile, "tool_count": len(names), "tools": names}, indent=2))
+                return
             required = {
                 "bng_health",
                 "bng_running_config",
@@ -211,5 +219,10 @@ if __name__ == "__main__":
         action="store_true",
         help="create UE sessions 2 and 3, test session 3, then delete both",
     )
+    parser.add_argument(
+        "--list-only",
+        action="store_true",
+        help="list the tools visible through the selected gateway profile",
+    )
     args = parser.parse_args()
-    asyncio.run(main(args.url, args.lifecycle, args.profile))
+    asyncio.run(main(args.url, args.lifecycle, args.profile, args.list_only))

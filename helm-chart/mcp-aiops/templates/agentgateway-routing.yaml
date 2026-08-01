@@ -51,6 +51,25 @@ spec:
           port: 8080
           path: /mcp
           protocol: StreamableHTTP
+{{- if $profile.tools }}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: osvbng-mcp-{{ $profileName }}-tool-authorization
+spec:
+  targetRefs:
+    - group: agentgateway.dev
+      kind: AgentgatewayBackend
+      name: osvbng-mcp-{{ $profileName }}
+  backend:
+    mcp:
+      authorization:
+        action: Allow
+        policy:
+          matchExpressions:
+            - {{ printf "mcp.tool.name in %s" (toJson $profile.tools) | quote }}
+{{- end }}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute

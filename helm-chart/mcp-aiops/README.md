@@ -269,9 +269,13 @@ This request is denied for the NOC role because it requires administrator author
 ```
 
 This wording policy improves the response but is not the authorization
-boundary. Enforcement comes from the NOC `MCPToolConfig` allowlist, disabled
-mutation environment flags, Open WebUI group grant, and the separately
-authenticated Agentgateway route.
+boundary. The NOC tool list in `osvbngMcp.profiles.noc.tools` is rendered into
+both the ToolHive `MCPToolConfig` allowlist and an Agentgateway
+`AgentgatewayPolicy`. Agentgateway filters `tools/list` and rejects calls to
+tools outside that list. Disabled mutation environment flags, the Open WebUI
+group grant, and the separately authenticated Agentgateway route provide
+additional layers. The built-in Agentgateway policy response is not
+customizable; the curated model supplies the friendlier wording above.
 
 The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
 require the NOC key; unauthenticated requests are rejected.

@@ -177,6 +177,25 @@ This result proves that:
 - raw configuration, UE create/delete, and HA switchover were absent from NOC
   tool discovery.
 
+Confirm that the same NOC allowlist is enforced at Agentgateway:
+
+```powershell
+kubectl get agentgatewaypolicy osvbng-mcp-noc-tool-authorization `
+  -n osvbng-aiops -o yaml
+```
+
+Expected results:
+
+- `spec.backend.mcp.authorization.action` is `Allow`;
+- the CEL expression contains the configured NOC tool names; and
+- status conditions report `Accepted=True` and `Attached=True`.
+
+This policy is generated from the same `osvbngMcp.profiles.noc.tools` value as
+the ToolHive `MCPToolConfig`, avoiding a second manually maintained allowlist.
+The isolation test for chart `0.4.3` left ToolHive at 22 tools, temporarily
+limited only Agentgateway to `bng_health`, and observed exactly one tool from
+the client. Restoring the generated policy returned all 22 NOC tools.
+
 Requests without a key, or with the NOC key sent to `/mcp/admin`, must return
 HTTP `401`. Repeat with the value from `osvbng-mcp-admin-client-key` and
 `--url http://<node-ip>:30080/mcp/admin --profile admin`. The admin result must
