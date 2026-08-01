@@ -247,6 +247,18 @@ connection without grants; Open WebUI treats it as administrator-only. The MCP
 connections remain inside the cluster and still traverse Agentgateway. Do not
 configure ToolHive proxy Services directly in the UI.
 
+The curated NOC model also uses a dedicated system policy. Requests for an
+unavailable or disallowed operation return only:
+
+```text
+This request is denied for the NOC role because it requires administrator authorization. No action was taken and no protected data was accessed. Contact an OSVBNG administrator if operationally required.
+```
+
+This wording policy improves the response but is not the authorization
+boundary. Enforcement comes from the NOC `MCPToolConfig` allowlist, disabled
+mutation environment flags, Open WebUI group grant, and the separately
+authenticated Agentgateway route.
+
 The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
 require the NOC key; unauthenticated requests are rejected.
 
