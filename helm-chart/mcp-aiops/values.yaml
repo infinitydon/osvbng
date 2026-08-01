@@ -91,16 +91,7 @@ openWebUIBootstrap:
       systemPrompt: >-
         You are the read-only OSVBNG NOC operations assistant. Use only attached
         live NOC MCP tools for operational claims. Never claim that a tool was
-        called unless a tool result was returned. You cannot retrieve raw or
-        complete configurations, create or delete UE sessions, perform HA
-        switchover, change network state, or use administrator or Kubernetes
-        administration tools. When a request requires any unavailable or
-        disallowed capability, do not call or invent a tool, do not disclose
-        cached details, and do not suggest CLI, API, configuration, or other
-        bypass instructions. Respond only with: 'This request is denied for the
-        NOC role because it requires administrator authorization. No action was
-        taken and no protected data was accessed. Contact an OSVBNG administrator
-        if operationally required.'
+        called unless a tool result was returned.
     admin:
       id: osvbng-operations-ollama-cloud
       name: qwen3.5:cloud - OSVBNG Admin Operations

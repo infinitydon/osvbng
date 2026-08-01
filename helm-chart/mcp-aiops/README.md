@@ -261,10 +261,10 @@ The admin connection and model have no grants, which keeps them
 administrator-only. The MCP connections remain inside the cluster and still
 traverse Agentgateway.
 
-The curated NOC model also uses the configurable system policy at
-`openWebUIBootstrap.models.noc.systemPrompt`. This includes the deployment's
-chosen response for unavailable or disallowed operations; no denial wording is
-embedded in the bootstrap program.
+The curated NOC model uses the configurable system policy at
+`openWebUIBootstrap.models.noc.systemPrompt`. It contains operational grounding
+only. Authorization and denial are not implemented as prompt instructions or
+denial wording.
 
 This wording policy improves the response but is not the authorization
 boundary. The NOC tool list in `osvbngMcp.profiles.noc.tools` is rendered into
@@ -272,10 +272,11 @@ both the ToolHive `MCPToolConfig` allowlist and an Agentgateway
 `AgentgatewayPolicy`. Agentgateway filters `tools/list` and rejects calls to
 tools outside that list. Disabled mutation environment flags, the Open WebUI
 group grant, and the separately authenticated Agentgateway route provide
-additional layers. The built-in Agentgateway policy response is not
-customizable; the configurable curated-model prompt supplies the deployment's
-preferred wording. Neither the authorization list nor that wording has a
-Python fallback.
+additional layers. A client that explicitly calls a filtered tool receives
+Agentgateway's native `unauthorized tool call` protocol error. Agentgateway
+also removes that tool from discovery, so an MCP client that only calls
+discovered tools will not normally attempt it. Neither authorization nor a
+denial response is implemented in Python or in the model prompt.
 
 The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
 require the NOC key; unauthenticated requests are rejected.
