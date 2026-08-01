@@ -13,6 +13,8 @@ async def main(
     lifecycle: bool,
     profile: str,
     list_only: bool = False,
+    expected_tools: set[str] | None = None,
+    denied_tools: set[str] | None = None,
 ) -> None:
     token = os.environ.get("MCP_API_KEY")
     headers = {"Authorization": f"Bearer {token}"} if token else None
@@ -25,64 +27,12 @@ async def main(
             if list_only:
                 print(json.dumps({"profile": profile, "tool_count": len(names), "tools": names}, indent=2))
                 return
-            required = {
-                "bng_health",
-                "bng_running_config",
-                "bng_running_configs",
-                "ha_status",
-                "ha_sync",
-                "subscriber_sessions",
-                "cgnat_pools",
-                "cgnat_mappings",
-                "cgnat_sessions",
-                "radius_servers",
-                "ha_switchover",
-                "bng_bgp_status",
-                "bng_routes",
-                "bng_bgp_routes",
-                "bng_vpp_routes",
-                "frr_bgp_status",
-                "frr_routes",
-                "frr_bgp_routes",
-                "frr_neighbor_routes",
-                "routing_overview",
-                "ue_sessions",
-                "ue_session_status",
-                "ue_session_range",
-                "ue_session_create",
-                "ue_session_delete",
-                "ue_ping",
-                "ue_curl",
-            }
-            missing = required.difference(names)
-            if profile == "admin" and missing:
-                raise RuntimeError(f"missing tools: {sorted(missing)}")
-
-            noc_required = {
-                "bng_health",
-                "subscriber_sessions",
-                "bng_bgp_status",
-                "frr_bgp_status",
-                "routing_overview",
-                "ue_sessions",
-                "ue_session_status",
-            }
-            forbidden = {
-                "bng_running_config",
-                "bng_running_configs",
-                "ue_session_create",
-                "ue_session_delete",
-                "ha_switchover",
-            }
-            if profile == "noc":
-                if noc_required.difference(names):
-                    raise RuntimeError(
-                        f"missing NOC tools: {sorted(noc_required.difference(names))}"
-                    )
-                if forbidden.intersection(names):
-                    raise RuntimeError(
-                        f"NOC exposes forbidden tools: {sorted(forbidden.intersection(names))}"
-                    )
+            missing = (expected_tools or set()).difference(names)
+            exposed_denied = (denied_tools or set()).intersection(names)
+            if missing:
+                raise RuntimeError(f"missing expected tools: {sorted(missing)}")
+            if exposed_denied:
+                raise RuntimeError(f"denied tools are visible: {sorted(exposed_denied)}")
 
             health = await session.call_tool("bng_health", {})
             running = None
@@ -153,7 +103,7 @@ async def main(
                 ),
                 "ue_session_range_error": ue_range.isError,
                 "routing_overview_error": routing.isError,
-                "forbidden_tools_present": sorted(forbidden.intersection(names)),
+                "denied_tools_present": sorted((denied_tools or set()).intersection(names)),
                 "admin_ue_confirmation_blocked": admin_ue_confirmation_blocked,
                 "admin_ha_confirmation_blocked": admin_ha_confirmation_blocked,
             }
@@ -224,5 +174,25 @@ if __name__ == "__main__":
         action="store_true",
         help="list the tools visible through the selected gateway profile",
     )
+    parser.add_argument(
+        "--expected-tools",
+        default=os.environ.get("EXPECTED_MCP_TOOLS", ""),
+        help="comma-separated expected tools supplied by deployment validation",
+    )
+    parser.add_argument(
+        "--denied-tools",
+        default=os.environ.get("DENIED_MCP_TOOLS", ""),
+        help="comma-separated tools that must not be visible",
+    )
     args = parser.parse_args()
-    asyncio.run(main(args.url, args.lifecycle, args.profile, args.list_only))
+    parse_tools = lambda value: {item.strip() for item in value.split(",") if item.strip()}
+    asyncio.run(
+        main(
+            args.url,
+            args.lifecycle,
+            args.profile,
+            args.list_only,
+            parse_tools(args.expected_tools),
+            parse_tools(args.denied_tools),
+        )
+    )

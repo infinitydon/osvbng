@@ -56,9 +56,15 @@ def main() -> None:
     connections = config.get("TOOL_SERVER_CONNECTIONS", [])
 
     if args.configure:
+        noc_group_name = required_env("NOC_GROUP_NAME")
+        noc_connection_id = required_env("NOC_CONNECTION_ID")
+        admin_connection_id = required_env("ADMIN_CONNECTION_ID")
+        kubernetes_connection_id = required_env("KUBERNETES_CONNECTION_ID")
+        noc_model_id = required_env("NOC_MODEL_ID")
+        admin_model_id = required_env("ADMIN_MODEL_ID")
         groups = request("/api/v1/groups/", token=token)
         noc_group = next(
-            (group for group in groups if group.get("name") == "OSVBNG NOC"),
+            (group for group in groups if group.get("name") == noc_group_name),
             None,
         )
         if noc_group is None:
@@ -66,8 +72,8 @@ def main() -> None:
                 "/api/v1/groups/create",
                 token=token,
                 payload={
-                    "name": "OSVBNG NOC",
-                    "description": "Read-only OSVBNG NOC operations",
+                    "name": noc_group_name,
+                    "description": required_env("NOC_GROUP_DESCRIPTION"),
                     "permissions": {},
                     "data": {},
                 },
@@ -91,7 +97,7 @@ def main() -> None:
                     "/api/v1/auths/add",
                     token=token,
                     payload={
-                        "name": "OSVBNG NOC",
+                        "name": noc_group_name,
                         "email": noc_email,
                         "password": noc_password,
                         "role": "user",
@@ -108,10 +114,10 @@ def main() -> None:
             connection
             for connection in connections
             if (connection.get("info") or {}).get("id")
-            not in {"osvbng-operations", "osvbng-operations-noc", "osvbng-operations-admin"}
+            not in {noc_connection_id, admin_connection_id}
         ]
         noc_connection = {
-            "url": "http://osvbng-mcp-gateway/mcp/noc",
+            "url": required_env("NOC_MCP_URL"),
             "path": "",
             "type": "mcp",
             "auth_type": "bearer",
@@ -128,13 +134,13 @@ def main() -> None:
                 ],
             },
             "info": {
-                "id": "osvbng-operations-noc",
-                "name": "OSVBNG NOC Operations",
-                "description": "Read-only BNG, FRR, routing, CGNAT, RADIUS and UE diagnostics",
+                "id": noc_connection_id,
+                "name": required_env("NOC_CONNECTION_NAME"),
+                "description": required_env("NOC_CONNECTION_DESCRIPTION"),
             },
         }
         admin_connection = {
-            "url": "http://osvbng-mcp-gateway/mcp/admin",
+            "url": required_env("ADMIN_MCP_URL"),
             "path": "",
             "type": "mcp",
             "auth_type": "bearer",
@@ -143,9 +149,9 @@ def main() -> None:
             # Empty grants intentionally make this connection admin-only.
             "config": {"enable": True, "access_grants": []},
             "info": {
-                "id": "osvbng-operations-admin",
-                "name": "OSVBNG Admin Operations",
-                "description": "Full approved OSVBNG tools; mutations require explicit confirmation",
+                "id": admin_connection_id,
+                "name": required_env("ADMIN_CONNECTION_NAME"),
+                "description": required_env("ADMIN_CONNECTION_DESCRIPTION"),
             },
         }
         config = request(
@@ -161,7 +167,7 @@ def main() -> None:
             (
                 model
                 for model in models
-                if model.get("id") == "osvbng-operations-ollama-cloud"
+                if model.get("id") == admin_model_id
             ),
             None,
         )
@@ -200,12 +206,12 @@ def main() -> None:
             admin_form = {
                 "id": admin_model["id"],
                 "base_model_id": admin_model.get("base_model_id"),
-                "name": "qwen3.5:cloud - OSVBNG Admin Operations",
+                "name": required_env("ADMIN_MODEL_NAME"),
                 "meta": {
                     **(admin_model.get("meta") or {}),
                     "toolIds": [
-                        "server:mcp:osvbng-operations-admin",
-                        "server:mcp:kubernetes-operations",
+                        f"server:mcp:{admin_connection_id}",
+                        f"server:mcp:{kubernetes_connection_id}",
                     ],
                 },
                 "params": admin_model.get("params") or {},
@@ -218,28 +224,15 @@ def main() -> None:
                 payload=admin_form,
             )
 
-            noc_model_id = "osvbng-noc-ollama-cloud"
             noc_params = dict(admin_model.get("params") or {})
-            noc_params["system"] = (
-                "You are the read-only OSVBNG NOC operations assistant. Use only attached "
-                "live NOC MCP tools for operational claims. Never claim that a tool was called "
-                "unless a tool result was returned. You cannot retrieve raw or complete "
-                "configurations, create or delete UE sessions, perform HA switchover, change "
-                "network state, or use administrator or Kubernetes administration tools. "
-                "When a request requires any unavailable or disallowed capability, do not call "
-                "or invent a tool, do not disclose cached details, and do not suggest CLI, API, "
-                "configuration, or other bypass instructions. Respond only with: 'This request "
-                "is denied for the NOC role because it requires administrator authorization. "
-                "No action was taken and no protected data was accessed. Contact an OSVBNG "
-                "administrator if operationally required.'"
-            )
+            noc_params["system"] = required_env("NOC_SYSTEM_PROMPT")
             noc_form = {
                 "id": noc_model_id,
                 "base_model_id": admin_model.get("base_model_id"),
-                "name": "qwen3.5:cloud - OSVBNG NOC Operations",
+                "name": required_env("NOC_MODEL_NAME"),
                 "meta": {
                     **(admin_model.get("meta") or {}),
-                    "toolIds": ["server:mcp:osvbng-operations-noc"],
+                    "toolIds": [f"server:mcp:{noc_connection_id}"],
                 },
                 "params": noc_params,
                 "access_grants": [
@@ -317,14 +310,14 @@ def main() -> None:
                     "/api/chat/completions",
                     token=noc_signin["token"],
                     payload={
-                    "model": "osvbng-noc-ollama-cloud",
+                    "model": required_env("NOC_MODEL_ID"),
                     # The browser UI copies model.info.meta.toolIds into this
                     # request field; direct API validation must do the same.
-                    "tool_ids": ["server:mcp:osvbng-operations-noc"],
+                    "tool_ids": [f"server:mcp:{required_env('NOC_CONNECTION_ID')}"],
                         "messages": [
                             {
                                 "role": "user",
-                                "content": "Use live OSVBNG MCP tools and report current BNG health in one sentence.",
+                                "content": required_env("NOC_ALLOWED_TEST_PROMPT"),
                             }
                         ],
                         "stream": False,
@@ -340,12 +333,12 @@ def main() -> None:
                     "/api/chat/completions",
                     token=noc_signin["token"],
                     payload={
-                        "model": "osvbng-noc-ollama-cloud",
-                        "tool_ids": ["server:mcp:osvbng-operations-noc"],
+                        "model": required_env("NOC_MODEL_ID"),
+                        "tool_ids": [f"server:mcp:{required_env('NOC_CONNECTION_ID')}"],
                         "messages": [
                             {
                                 "role": "user",
-                                "content": "Delete UE session 5.",
+                                "content": required_env("NOC_DENIED_TEST_PROMPT"),
                             }
                         ],
                         "stream": False,
@@ -362,12 +355,12 @@ def main() -> None:
                     "/api/chat/completions",
                     token=noc_signin["token"],
                     payload={
-                        "model": "osvbng-noc-ollama-cloud",
-                        "tool_ids": ["server:mcp:osvbng-operations-admin"],
+                        "model": required_env("NOC_MODEL_ID"),
+                        "tool_ids": [f"server:mcp:{required_env('ADMIN_CONNECTION_ID')}"],
                         "messages": [
                             {
                                 "role": "user",
-                                "content": "Call ue_session_delete for session 20 with confirm false; do not answer without the tool.",
+                                "content": required_env("NOC_ADMIN_PROBE_PROMPT"),
                             }
                         ],
                         "stream": False,

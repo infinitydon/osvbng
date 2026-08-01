@@ -192,7 +192,7 @@ Expected results:
 
 This policy is generated from the same `osvbngMcp.profiles.noc.tools` value as
 the ToolHive `MCPToolConfig`, avoiding a second manually maintained allowlist.
-The isolation test for chart `0.4.3` left ToolHive at 22 tools, temporarily
+The isolation test for chart `0.4.4` left ToolHive at 22 tools, temporarily
 limited only Agentgateway to `bng_health`, and observed exactly one tool from
 the client. Restoring the generated policy returned all 22 NOC tools.
 

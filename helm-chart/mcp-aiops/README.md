@@ -261,12 +261,10 @@ The admin connection and model have no grants, which keeps them
 administrator-only. The MCP connections remain inside the cluster and still
 traverse Agentgateway.
 
-The curated NOC model also uses a dedicated system policy. Requests for an
-unavailable or disallowed operation return only:
-
-```text
-This request is denied for the NOC role because it requires administrator authorization. No action was taken and no protected data was accessed. Contact an OSVBNG administrator if operationally required.
-```
+The curated NOC model also uses the configurable system policy at
+`openWebUIBootstrap.models.noc.systemPrompt`. This includes the deployment's
+chosen response for unavailable or disallowed operations; no denial wording is
+embedded in the bootstrap program.
 
 This wording policy improves the response but is not the authorization
 boundary. The NOC tool list in `osvbngMcp.profiles.noc.tools` is rendered into
@@ -275,7 +273,9 @@ both the ToolHive `MCPToolConfig` allowlist and an Agentgateway
 tools outside that list. Disabled mutation environment flags, the Open WebUI
 group grant, and the separately authenticated Agentgateway route provide
 additional layers. The built-in Agentgateway policy response is not
-customizable; the curated model supplies the friendlier wording above.
+customizable; the configurable curated-model prompt supplies the deployment's
+preferred wording. Neither the authorization list nor that wording has a
+Python fallback.
 
 The compatibility path `/mcp` also targets the NOC profile. Both NOC paths
 require the NOC key; unauthenticated requests are rejected.
