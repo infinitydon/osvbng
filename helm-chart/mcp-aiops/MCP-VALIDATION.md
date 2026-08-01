@@ -17,7 +17,14 @@ $env:KUBECONFIG = 'C:\path\to\kubeconfig'
 
 ```powershell
 kubectl get pods -n osvbng-aiops
+kubectl get job osvbng-open-webui-bootstrap -n osvbng-aiops
+kubectl logs job/osvbng-open-webui-bootstrap -n osvbng-aiops
 ```
+
+The bootstrap Job is a `post-install,post-upgrade` Helm hook. Expected status
+is `Complete`, and its log reports `configured: true` with the two managed
+model and MCP connection IDs. Re-running `helm upgrade` must also succeed;
+this verifies that reconciliation is idempotent.
 
 Expected result (pod hashes will differ):
 

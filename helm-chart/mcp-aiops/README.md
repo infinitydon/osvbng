@@ -225,8 +225,22 @@ kubectl create secret generic osvbng-open-webui-secret `
   --from-literal=WEBUI_SECRET_KEY="$env:WEBUI_SECRET_KEY"
 ```
 
-The first account registered through the UI becomes the administrator. Add two
-authenticated MCP connections under **Admin Settings -> External Tools**:
+Create the administrator and NOC credential Secrets before installation. The
+Helm-managed `osvbng-open-webui-bootstrap` post-install/post-upgrade Job signs
+in with these credentials (or creates the first administrator on a new Open
+WebUI database) and reconciles the group, users, connections, and models:
+
+```powershell
+kubectl create secret generic osvbng-open-webui-admin -n osvbng-aiops `
+  --from-literal=email='admin@osvbng.local' `
+  --from-literal=password="$env:OSVBNG_ADMIN_PASSWORD"
+
+kubectl create secret generic osvbng-open-webui-noc -n osvbng-aiops `
+  --from-literal=email='noc@osvbng.local' `
+  --from-literal=password="$env:OSVBNG_NOC_PASSWORD"
+```
+
+The Job configures these authenticated MCP connections:
 
 ```text
 Type: MCP (Streamable HTTP)
@@ -242,10 +256,10 @@ Key: value from osvbng-mcp-admin-client-key
 Name: OSVBNG Admin Operations
 ```
 
-Grant the NOC connection to an `OSVBNG NOC` Open WebUI group. Leave the admin
-connection without grants; Open WebUI treats it as administrator-only. The MCP
-connections remain inside the cluster and still traverse Agentgateway. Do not
-configure ToolHive proxy Services directly in the UI.
+The NOC connection and curated model are granted to the `OSVBNG NOC` group.
+The admin connection and model have no grants, which keeps them
+administrator-only. The MCP connections remain inside the cluster and still
+traverse Agentgateway.
 
 The curated NOC model also uses a dedicated system policy. Requests for an
 unavailable or disallowed operation return only:
@@ -269,10 +283,10 @@ Create two curated models:
 - `qwen3.5:cloud - OSVBNG Admin Operations`: leave administrator-only and
   attach `OSVBNG Admin Operations` plus `Kubernetes Operations`.
 
-`development/openwebui_tool_profiles.py` performs this configuration through
-the Open WebUI API for the lab. It reads all passwords and keys from environment
-variables and never prints them. That helper is excluded from the packaged
-chart.
+All profile inputs are under `openWebUIBootstrap` in `values.yaml`. The hook Job
+reads passwords and MCP keys directly from the referenced Secrets and never
+stores them in a ConfigMap or Helm values. The development helper remains
+available for diagnostics but is no longer required for installation.
 
 Add Kubernetes as a second External Tool and attach it to the same curated
 model when cluster diagnostics are wanted:

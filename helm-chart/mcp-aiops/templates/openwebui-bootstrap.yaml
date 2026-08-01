@@ -1,0 +1,280 @@
+{{- if and (index .Values "open-webui" "enabled") .Values.openWebUIBootstrap.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-open-webui-bootstrap
+data:
+  bootstrap.py: |
+    import json
+    import os
+    import time
+    import urllib.error
+    import urllib.request
+
+    base = os.environ["OPENWEBUI_URL"].rstrip("/")
+    deadline = time.time() + int(os.environ.get("BOOTSTRAP_TIMEOUT", "300"))
+
+    def call(path, payload=None, token=None, timeout=30):
+        data = json.dumps(payload).encode() if payload is not None else None
+        headers = {"content-type": "application/json"}
+        if token:
+            headers["authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(base + path, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            body = error.read().decode(errors="replace")
+            raise RuntimeError(f"{path} returned HTTP {error.code}: {body}") from error
+
+    admin = {
+        "name": os.environ.get("ADMIN_NAME", "OSVBNG Administrator"),
+        "email": os.environ["ADMIN_EMAIL"],
+        "password": os.environ["ADMIN_PASSWORD"],
+    }
+    token = None
+    last_error = None
+    while time.time() < deadline:
+        try:
+            token = call("/api/v1/auths/signin", admin)["token"]
+            break
+        except Exception as error:
+            last_error = error
+            # An HTTP response proves the service is ready. Authentication can
+            # legitimately fail on a new database, so proceed to first-user
+            # signup instead of waiting for the full connectivity timeout.
+            if "returned HTTP" in str(error):
+                break
+            time.sleep(5)
+    if token is None:
+        # A new persistent volume has no administrator yet. Open WebUI makes
+        # the first registered account administrator and then disables signup.
+        try:
+            token = call("/api/v1/auths/signup", admin)["token"]
+        except Exception as error:
+            raise RuntimeError(
+                f"Open WebUI administrator sign-in/bootstrap failed: {last_error}; {error}"
+            ) from error
+
+    groups = call("/api/v1/groups/", token=token)
+    group_name = os.environ["NOC_GROUP_NAME"]
+    noc_group = next((item for item in groups if item.get("name") == group_name), None)
+    if noc_group is None:
+        noc_group = call(
+            "/api/v1/groups/create",
+            {
+                "name": group_name,
+                "description": os.environ["NOC_GROUP_DESCRIPTION"],
+                "permissions": {},
+                "data": {},
+            },
+            token,
+        )
+
+    users_response = call("/api/v1/users/", token=token)
+    users = (
+        users_response.get("users", users_response.get("items", []))
+        if isinstance(users_response, dict)
+        else users_response
+    )
+    noc_email = os.environ["NOC_EMAIL"].lower()
+    noc_user = next((item for item in users if item.get("email") == noc_email), None)
+    if noc_user is None:
+        noc_user = call(
+            "/api/v1/auths/add",
+            {
+                "name": os.environ.get("NOC_NAME", "OSVBNG NOC"),
+                "email": noc_email,
+                "password": os.environ["NOC_PASSWORD"],
+                "role": "user",
+                "profile_image_url": "/user.png",
+            },
+            token,
+        )
+    call(
+        f"/api/v1/groups/id/{noc_group['id']}/users/add",
+        {"user_ids": [noc_user["id"]]},
+        token,
+    )
+
+    config = call("/api/v1/configs/tool_servers", token=token)
+    managed_ids = {os.environ["NOC_CONNECTION_ID"], os.environ["ADMIN_CONNECTION_ID"]}
+    preserved = [
+        connection
+        for connection in config.get("TOOL_SERVER_CONNECTIONS", [])
+        if (connection.get("info") or {}).get("id") not in managed_ids
+    ]
+    noc_connection = {
+        "url": os.environ["NOC_MCP_URL"],
+        "path": "",
+        "type": "mcp",
+        "auth_type": "bearer",
+        "headers": None,
+        "key": os.environ["NOC_MCP_KEY"],
+        "config": {
+            "enable": True,
+            "access_grants": [{
+                "principal_type": "group",
+                "principal_id": noc_group["id"],
+                "permission": "read",
+            }],
+        },
+        "info": {
+            "id": os.environ["NOC_CONNECTION_ID"],
+            "name": os.environ["NOC_CONNECTION_NAME"],
+            "description": "Read-only OSVBNG operational tools",
+        },
+    }
+    admin_connection = {
+        "url": os.environ["ADMIN_MCP_URL"],
+        "path": "",
+        "type": "mcp",
+        "auth_type": "bearer",
+        "headers": None,
+        "key": os.environ["ADMIN_MCP_KEY"],
+        "config": {"enable": True, "access_grants": []},
+        "info": {
+            "id": os.environ["ADMIN_CONNECTION_ID"],
+            "name": os.environ["ADMIN_CONNECTION_NAME"],
+            "description": "Administrator OSVBNG operational tools",
+        },
+    }
+    call(
+        "/api/v1/configs/tool_servers",
+        {"TOOL_SERVER_CONNECTIONS": preserved + [noc_connection, admin_connection]},
+        token,
+    )
+
+    models = call("/api/v1/models/list", token=token).get("items", [])
+    base_model = os.environ["BASE_MODEL"]
+    base_form = {
+        "id": base_model,
+        "base_model_id": None,
+        "name": base_model,
+        "meta": {},
+        "params": {},
+        "access_grants": [{
+            "principal_type": "group",
+            "principal_id": noc_group["id"],
+            "permission": "read",
+        }],
+        "is_active": True,
+    }
+    def upsert_model(form):
+        try:
+            return call("/api/v1/models/model/update", form, token)
+        except RuntimeError as error:
+            message = str(error).lower()
+            if "not_found" not in message and "not found" not in message:
+                raise
+            return call("/api/v1/models/create", form, token)
+
+    # The upstream base model may be registered but omitted from the workspace
+    # model list, so reconciliation must use update-first semantics.
+    upsert_model(base_form)
+
+    existing_models = {model.get("id"): model for model in models}
+    admin_model_id = os.environ["ADMIN_MODEL_ID"]
+    admin_params = dict((existing_models.get(admin_model_id) or {}).get("params") or {})
+    admin_params.setdefault("temperature", 0.1)
+    forms = [
+        {
+            "id": os.environ["NOC_MODEL_ID"],
+            "base_model_id": base_model,
+            "name": os.environ["NOC_MODEL_NAME"],
+            "meta": {"toolIds": [f"server:mcp:{os.environ['NOC_CONNECTION_ID']}"]},
+            "params": {"system": os.environ["NOC_SYSTEM_PROMPT"], "temperature": 0.1},
+            "access_grants": [{
+                "principal_type": "group",
+                "principal_id": noc_group["id"],
+                "permission": "read",
+            }],
+            "is_active": True,
+        },
+        {
+            "id": admin_model_id,
+            "base_model_id": base_model,
+            "name": os.environ["ADMIN_MODEL_NAME"],
+            "meta": {"toolIds": [
+                f"server:mcp:{os.environ['ADMIN_CONNECTION_ID']}",
+                f"server:mcp:{os.environ['KUBERNETES_CONNECTION_ID']}",
+            ]},
+            "params": admin_params,
+            "access_grants": [],
+            "is_active": True,
+        },
+    ]
+    for form in forms:
+        upsert_model(form)
+    print(json.dumps({
+        "configured": True,
+        "nocGroup": group_name,
+        "models": [form["id"] for form in forms],
+        "connections": sorted(managed_ids),
+    }))
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: osvbng-open-webui-bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: osvbng-open-webui-bootstrap
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: "{{ .Values.openWebUIBootstrap.image.repository }}:{{ .Values.openWebUIBootstrap.image.tag }}"
+          imagePullPolicy: {{ .Values.openWebUIBootstrap.image.pullPolicy }}
+          command: ["python3", "/bootstrap/bootstrap.py"]
+          env:
+            - name: OPENWEBUI_URL
+              value: {{ .Values.openWebUIBootstrap.baseUrl | quote }}
+            - name: BOOTSTRAP_TIMEOUT
+              value: {{ .Values.openWebUIBootstrap.timeoutSeconds | quote }}
+            - name: ADMIN_EMAIL
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.credentials.adminSecret }}, key: email}}
+            - name: ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.credentials.adminSecret }}, key: password}}
+            - name: NOC_EMAIL
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.credentials.nocSecret }}, key: email}}
+            - name: NOC_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.credentials.nocSecret }}, key: password}}
+            - name: NOC_MCP_KEY
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.connections.noc.secretName }}, key: {{ .Values.openWebUIBootstrap.connections.noc.secretKey }}}}
+            - name: ADMIN_MCP_KEY
+              valueFrom: {secretKeyRef: {name: {{ .Values.openWebUIBootstrap.connections.admin.secretName }}, key: {{ .Values.openWebUIBootstrap.connections.admin.secretKey }}}}
+            - {name: NOC_GROUP_NAME, value: {{ .Values.openWebUIBootstrap.group.nocName | quote }}}
+            - {name: NOC_GROUP_DESCRIPTION, value: {{ .Values.openWebUIBootstrap.group.nocDescription | quote }}}
+            - {name: BASE_MODEL, value: {{ .Values.openWebUIBootstrap.models.baseModel | quote }}}
+            - {name: NOC_MODEL_ID, value: {{ .Values.openWebUIBootstrap.models.noc.id | quote }}}
+            - {name: NOC_MODEL_NAME, value: {{ .Values.openWebUIBootstrap.models.noc.name | quote }}}
+            - {name: NOC_SYSTEM_PROMPT, value: {{ .Values.openWebUIBootstrap.models.noc.systemPrompt | quote }}}
+            - {name: ADMIN_MODEL_ID, value: {{ .Values.openWebUIBootstrap.models.admin.id | quote }}}
+            - {name: ADMIN_MODEL_NAME, value: {{ .Values.openWebUIBootstrap.models.admin.name | quote }}}
+            - {name: NOC_CONNECTION_ID, value: {{ .Values.openWebUIBootstrap.connections.noc.id | quote }}}
+            - {name: NOC_CONNECTION_NAME, value: {{ .Values.openWebUIBootstrap.connections.noc.name | quote }}}
+            - {name: NOC_MCP_URL, value: {{ .Values.openWebUIBootstrap.connections.noc.url | quote }}}
+            - {name: ADMIN_CONNECTION_ID, value: {{ .Values.openWebUIBootstrap.connections.admin.id | quote }}}
+            - {name: ADMIN_CONNECTION_NAME, value: {{ .Values.openWebUIBootstrap.connections.admin.name | quote }}}
+            - {name: ADMIN_MCP_URL, value: {{ .Values.openWebUIBootstrap.connections.admin.url | quote }}}
+            - {name: KUBERNETES_CONNECTION_ID, value: {{ .Values.openWebUIBootstrap.connections.kubernetes.id | quote }}}
+          volumeMounts:
+            - name: script
+              mountPath: /bootstrap
+              readOnly: true
+          resources:
+            {{- toYaml .Values.openWebUIBootstrap.resources | nindent 12 }}
+      volumes:
+        - name: script
+          configMap:
+            name: osvbng-open-webui-bootstrap
+{{- end }}

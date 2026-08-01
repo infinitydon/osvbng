@@ -69,6 +69,64 @@ open-webui:
       cpu: "2"
       memory: 2Gi
 
+openWebUIBootstrap:
+  enabled: true
+  image:
+    repository: ghcr.io/open-webui/open-webui
+    tag: "0.11.0"
+    pullPolicy: IfNotPresent
+  baseUrl: http://osvbng-open-webui
+  timeoutSeconds: 300
+  credentials:
+    adminSecret: osvbng-open-webui-admin
+    nocSecret: osvbng-open-webui-noc
+  group:
+    nocName: OSVBNG NOC
+    nocDescription: Read-only OSVBNG NOC operations
+  models:
+    baseModel: qwen3.5:cloud
+    noc:
+      id: osvbng-noc-ollama-cloud
+      name: qwen3.5:cloud - OSVBNG NOC Operations
+      systemPrompt: >-
+        You are the read-only OSVBNG NOC operations assistant. Use only attached
+        live NOC MCP tools for operational claims. Never claim that a tool was
+        called unless a tool result was returned. You cannot retrieve raw or
+        complete configurations, create or delete UE sessions, perform HA
+        switchover, change network state, or use administrator or Kubernetes
+        administration tools. When a request requires any unavailable or
+        disallowed capability, do not call or invent a tool, do not disclose
+        cached details, and do not suggest CLI, API, configuration, or other
+        bypass instructions. Respond only with: 'This request is denied for the
+        NOC role because it requires administrator authorization. No action was
+        taken and no protected data was accessed. Contact an OSVBNG administrator
+        if operationally required.'
+    admin:
+      id: osvbng-operations-ollama-cloud
+      name: qwen3.5:cloud - OSVBNG Admin Operations
+  connections:
+    noc:
+      id: osvbng-operations-noc
+      name: OSVBNG NOC Operations
+      url: http://osvbng-mcp-gateway/mcp/noc
+      secretName: osvbng-mcp-noc-client-key
+      secretKey: api-key
+    admin:
+      id: osvbng-operations-admin
+      name: OSVBNG Admin Operations
+      url: http://osvbng-mcp-gateway/mcp/admin
+      secretName: osvbng-mcp-admin-client-key
+      secretKey: api-key
+    kubernetes:
+      id: kubernetes-operations
+  resources:
+    requests:
+      cpu: 25m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
 osvbngMcp:
   enabled: true
   serviceAccountName: osvbng-ops-mcp
