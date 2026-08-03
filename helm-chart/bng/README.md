@@ -1,5 +1,8 @@
 # OSVBNG Helm chart
 
+See [`../DEPLOYMENT.md`](../DEPLOYMENT.md) for the complete ordered platform
+installation. This file is the BNG-specific reference.
+
 This chart deploys upstream OSVBNG `v0.16.0` with direct VFIO/DPDK devices,
 native PBA CGNAT, optional active/standby HA, BGP, and an optional
 FreeRADIUS 3.2.7/PostgreSQL profile. Subscriber simulation now lives in the

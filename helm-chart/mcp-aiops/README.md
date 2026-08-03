@@ -1,5 +1,8 @@
 # osvbng MCP/AIOps chart
 
+See [`../DEPLOYMENT.md`](../DEPLOYMENT.md) for the complete ordered platform
+installation. This file is the AIOps-specific reference.
+
 This chart provides a framework-neutral MCP control plane for osvbng:
 
 ```text

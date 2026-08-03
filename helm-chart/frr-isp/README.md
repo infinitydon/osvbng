@@ -1,5 +1,8 @@
 # FRR ISP router
 
+See [`../DEPLOYMENT.md`](../DEPLOYMENT.md) for the complete ordered platform
+installation. This file is the FRR-specific reference.
+
 See [MIKROTIK.md](MIKROTIK.md) for the RouterOS 7.23.1 upstream BGP,
 firewall, NAT, validation, and removal commands.
 

@@ -1,5 +1,9 @@
 # Helm charts
 
+For a complete installation—including worker preparation, secrets, required
+and optional profiles, validation, upgrades, rollback, and removal—follow
+[`DEPLOYMENT.md`](DEPLOYMENT.md).
+
 The Kubernetes implementation is split into independent charts:
 
 - `bng`: osvbng, VFIO/DPDK, HA, CGNAT, and the optional

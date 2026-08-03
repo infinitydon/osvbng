@@ -1,5 +1,8 @@
 # OSVBNG CPE lab
 
+See [`../DEPLOYMENT.md`](../DEPLOYMENT.md) for the complete ordered platform
+installation. This file is the CPE-lab-specific reference.
+
 This separate chart provides an end-to-end subscriber and TR-069 lab for an
 existing OSVBNG release. It creates 20 BNG Blaster IPoE sessions, moves each
 session interface into its own Linux network namespace, runs one cpe-labs
