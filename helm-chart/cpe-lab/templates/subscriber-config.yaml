@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: osvbng-cpe-lab-config
+data:
+  bngblaster.json: |
+    {
+      "interfaces": {
+        "tun-name": "bbl",
+        "access": [{
+          "interface": {{ .Values.subscriberLab.accessInterface | quote }},
+          "type": "ipoe",
+          "vlan-mode": "1:1",
+          "outer-vlan": {{ .Values.subscriberLab.outerVlan }},
+          "inner-vlan-min": {{ .Values.subscriberLab.innerVlanStart }},
+          "inner-vlan-max": {{ add (int .Values.subscriberLab.innerVlanStart) (sub (int .Values.subscriberLab.sessions) 1) }},
+          "tun": true
+        }]
+      },
+      "sessions": {
+        "count": {{ .Values.subscriberLab.sessions }},
+        "max-outstanding": {{ .Values.subscriberLab.sessions }},
+        "start-rate": {{ .Values.subscriberLab.startRate }},
+        "stop-rate": {{ .Values.subscriberLab.stopRate }},
+        "autostart": true
+      },
+      "dhcp": { "enable": true },
+      "dhcpv6": { "enable": false },
+      "ipoe": { "ipv6": false },
+      "access-line": {
+        "agent-circuit-id": "cpe-lab-{session-global}",
+        "agent-remote-id": "OSVBNG-{session-global}"
+      }
+    }
+  cpe-profile.yaml: |
+    deviceIdPaths:
+      manufacturer: Device.DeviceInfo.Manufacturer
+      oui: Device.DeviceInfo.ManufacturerOUI
+      productClass: Device.DeviceInfo.ProductClass
+      serialNumber: Device.DeviceInfo.SerialNumber
+    periodicInformPaths:
+      interval: Device.ManagementServer.PeriodicInformInterval
+      enable: Device.ManagementServer.PeriodicInformEnable
+    informParameters:
+      bootstrap:
+        - Device.DeviceInfo.SoftwareVersion
+        - Device.IP.Interface.1.IPv4Address
+      periodic:
+        - Device.DeviceInfo.UpTime
+        - Device.IP.Interface.1.IPv4Address
+    parameters:
+      - path: Device.DeviceInfo.Manufacturer
+        value: {{ .Values.subscriberLab.cpe.manufacturer | quote }}
+      - path: Device.DeviceInfo.ManufacturerOUI
+        value: {{ .Values.subscriberLab.cpe.oui | quote }}
+      - path: Device.DeviceInfo.ProductClass
+        value: {{ .Values.subscriberLab.cpe.productClass | quote }}
+      - path: Device.DeviceInfo.SerialNumber
+        value: "__SERIAL__"
+      - path: Device.DeviceInfo.SoftwareVersion
+        value: "cpe-labs-v0.2.1"
+      - path: Device.DeviceInfo.UpTime
+        type: xsd:unsignedInt
+        value: "1"
+      - path: Device.ManagementServer.URL
+        value: "http://{{ .Values.genieacs.cwmp.externalHost }}:{{ .Values.genieacs.cwmp.externalPort }}/"
+        writable: true
+      - path: Device.ManagementServer.Username
+        value: "cpe"
+        writable: true
+      - path: Device.ManagementServer.Password
+        value: ""
+        writable: true
+      - path: Device.ManagementServer.PeriodicInformEnable
+        type: xsd:boolean
+        value: "true"
+        writable: true
+      - path: Device.ManagementServer.PeriodicInformInterval
+        type: xsd:unsignedInt
+        value: {{ .Values.subscriberLab.cpe.informIntervalSeconds | quote }}
+        writable: true
+      - path: Device.ManagementServer.ConnectionRequestURL
+        value: ""
+      - path: Device.IP.Interface.1.IPv4Address
+        value: "__IPV4__"
+        writable: true

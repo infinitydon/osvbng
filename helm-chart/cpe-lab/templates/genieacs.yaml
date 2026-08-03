@@ -1,0 +1,160 @@
+{{- if .Values.genieacs.enabled }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: genieacs-secrets
+type: Opaque
+stringData:
+  ui-jwt-secret: {{ .Values.genieacs.uiJwtSecret | quote }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb
+  ports:
+    - name: mongodb
+      port: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: {{ .Values.mongodb.image | quote }}
+          imagePullPolicy: {{ .Values.mongodb.pullPolicy }}
+          ports:
+            - containerPort: 27017
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+          resources:
+            {{- toYaml .Values.mongodb.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data/db
+  {{- if .Values.mongodb.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.mongodb.persistence.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.mongodb.persistence.size }}
+  {{- else }}
+      volumes:
+        - name: data
+          emptyDir: {}
+  {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: genieacs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: genieacs
+  template:
+    metadata:
+      labels:
+        app: genieacs
+      annotations:
+        k8s.v1.cni.cncf.io/networks: genieacs-management
+        checksum/network: {{ include (print $.Template.BasePath "/network.yaml") . | sha256sum }}
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.genieacs.nodeSelector | nindent 8 }}
+      containers:
+        - name: genieacs
+          image: {{ .Values.genieacs.image | quote }}
+          imagePullPolicy: {{ .Values.genieacs.pullPolicy }}
+          env:
+            - name: GENIEACS_MONGODB_CONNECTION_URL
+              value: mongodb://mongodb:27017/genieacs
+            - name: GENIEACS_UI_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: genieacs-secrets
+                  key: ui-jwt-secret
+            - name: GENIEACS_CWMP_WORKER_PROCESSES
+              value: "1"
+            - name: GENIEACS_NBI_WORKER_PROCESSES
+              value: "1"
+            - name: GENIEACS_FS_WORKER_PROCESSES
+              value: "1"
+            - name: GENIEACS_UI_WORKER_PROCESSES
+              value: "1"
+            - name: NODE_OPTIONS
+              value: "--max-old-space-size=256"
+          ports:
+            - name: cwmp
+              containerPort: 7547
+            - name: nbi
+              containerPort: 7557
+            - name: fs
+              containerPort: 7567
+            - name: ui
+              containerPort: 3000
+          readinessProbe:
+            tcpSocket:
+              port: cwmp
+          resources:
+            {{- toYaml .Values.genieacs.resources | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genieacs
+spec:
+  selector:
+    app: genieacs
+  ports:
+    - name: cwmp
+      port: 7547
+      targetPort: cwmp
+    - name: ui
+      port: 3000
+      targetPort: ui
+    - name: nbi
+      port: 7557
+      targetPort: nbi
+    - name: fs
+      port: 7567
+      targetPort: fs
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: genieacs-public
+spec:
+  selector:
+    app: genieacs
+  ports:
+    - name: ui
+      port: 3000
+      targetPort: ui
+      nodePort: {{ .Values.genieacs.ui.nodePort }}
+  type: NodePort
+{{- end }}

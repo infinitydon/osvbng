@@ -13,13 +13,3 @@ osvbng:
       - 192.168.88.15
   ha:
     enabled: false
-
-bngblaster:
-  enabled: false
-
-trafficTest:
-  enabled: true
-  imagePullSecrets:
-    - name: ghcr-pull
-  nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01

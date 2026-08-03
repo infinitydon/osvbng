@@ -2,8 +2,10 @@
 
 The Kubernetes implementation is split into independent charts:
 
-- `bng`: osvbng, VFIO/DPDK, HA, CGNAT, subscriber testing, and the optional
+- `bng`: osvbng, VFIO/DPDK, HA, CGNAT, and the optional
   FreeRADIUS/PostgreSQL profile.
+- `cpe-lab`: BNG Blaster subscriber sessions, per-CPE network namespaces,
+  cpe-labs TR-069 clients, GenieACS, and MongoDB.
 - `frr-isp`: optional routed-CGNAT ISP edge with two-router eBGP ECMP.
 - `mcp-aiops`: Agentgateway, ToolHive, and the osvbng MCP operations server.
 

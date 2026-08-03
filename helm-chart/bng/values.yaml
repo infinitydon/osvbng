@@ -92,71 +92,13 @@ osvbng:
     txQueues: 2
     socketMemory: "1024"
 
-bngblaster:
-  enabled: true
-  image: "ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2"
-  pullPolicy: IfNotPresent
-  imagePullSecrets: []
-  accessInterface: "net1"
-  coreInterface: "net2"
-  sessions: 20
-  startRate: 20
-  stopRate: 20
-  activeDeadlineSeconds: 300
-  pollIntervalSeconds: 2
-  nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01
-  resources:
-    requests:
-      cpu: "1"
-      memory: "512Mi"
-    limits:
-      cpu: "2"
-      memory: "1Gi"
-
-trafficTest:
-  # Interactive UE and upstream gateway mode. This is mutually exclusive
-  # with BNG Blaster because host-device CNI moves each NIC into one pod.
-  enabled: false
-  image: "nicolaka/netshoot:v0.13@sha256:a20c2531bf35436ed3766cd6cfe89d352b050ccc4d7005ce6400adf97503da1b"
-  bngblasterImage: "ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2"
-  apiImage: "ghcr.io/infinitydon/osvbng-ue-api:0.1.7@sha256:a979303412bf1aca473c2b899319eaef8e1eea7a60a7d93f0e178f30b7362f89"
-  apiPort: 8081
-  pullPolicy: IfNotPresent
-  imagePullSecrets: []
-  sessionCapacity: 20
-  sessionTimeoutSeconds: 30
-  startRate: 5
-  stopRate: 5
-  outerVlan: 100
-  outerVlanProtocol: 802.1Q
-  innerVlan: 100
-  subscriberNetwork: 10.255.0.0/24
-  nodeSelector:
-    kubernetes.io/hostname: ebpf-bng-node-01
-  resources:
-    requests:
-      cpu: "100m"
-      memory: "128Mi"
-    limits:
-      cpu: "1"
-      memory: "512Mi"
-
-multus:
-  enabled: true
-  bngblaster:
-    devices:
-      accessHostDevice: "enp8s21"
-      coreHostDevice: "enp8s22"
-  trafficTest:
-    devices:
-      accessHostDevice: "enp8s21"
-
 # Optional subscriber AAA profile. When disabled, osvbng uses its local
 # allow-all provider and no FreeRADIUS or PostgreSQL resources are rendered.
 radius:
   enabled: false
-  autoProvisionTrafficTestUsers: true
+  # Lab-only deterministic MAC identities used by the separate cpe-lab chart.
+  autoProvisionSubscriberUsers: true
+  subscriberCapacity: 20
   existingSecret: ""
   sharedSecretKey: shared-secret
   clientNetwork: 10.1.0.0/16

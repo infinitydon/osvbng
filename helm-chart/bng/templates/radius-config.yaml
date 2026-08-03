@@ -146,8 +146,8 @@ data:
     INSERT INTO radreply (username, attribute, op, value)
       VALUES ({{ .username | squote }}, 'Acct-Interim-Interval', ':=', {{ printf "%v" $.Values.radius.interimInterval | squote }});
     {{- end }}
-    {{- if and .Values.radius.autoProvisionTrafficTestUsers .Values.trafficTest.enabled }}
-    {{- range $offset := until (int .Values.trafficTest.sessionCapacity) }}
+    {{- if .Values.radius.autoProvisionSubscriberUsers }}
+    {{- range $offset := until (int .Values.radius.subscriberCapacity) }}
     {{- $username := printf "02:00:00:00:00:%02x" (add $offset 1) }}
     INSERT INTO radcheck (username, attribute, op, value)
       SELECT {{ $username | squote }}, 'Cleartext-Password', ':=', {{ $.Values.radius.ipoePassword | squote }}

@@ -1,0 +1,72 @@
+subscriberLab:
+  sessions: 20
+  startRate: 5
+  stopRate: 5
+  outerVlan: 100
+  innerVlanStart: 100
+  accessInterface: net1
+  accessHostDevice: enp8s21
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-01
+  bngblasterImage: ghcr.io/infinitydon/bngblaster:0.9.37-1@sha256:428d1ddb243fc99676e69a92f5eb60b2cbe2818250ff1bf4e8290d52255827d2
+  cpeToolsImage: ghcr.io/infinitydon/osvbng-cpe-tools:0.1.0
+  ueApiImage: ghcr.io/infinitydon/osvbng-ue-api:0.2.0
+  imagePullSecrets:
+    - name: ghcr-pull
+  apiPort: 8081
+  sessionTimeoutSeconds: 45
+  cpe:
+    enabled: true
+    informIntervalSeconds: 60
+    manufacturer: Infinitydon Labs
+    oui: "001122"
+    productClass: OSVBNG-CPE
+    serialPrefix: OSVBNG
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+genieacs:
+  enabled: true
+  image: drumsergio/genieacs:1.2.16.6
+  pullPolicy: IfNotPresent
+  uiJwtSecret: change-me-in-a-private-values-file
+  cwmp:
+    externalHost: 192.168.88.252
+    externalPort: 7547
+  network:
+    parent: enp8s21
+    address: 192.168.88.252/24
+    cgnatPrefix: 100.64.100.0/24
+    cgnatGateway: 192.168.88.250
+  nodeSelector:
+    kubernetes.io/hostname: ebpf-bng-node-03-ubuntu-focal
+  ui:
+    serviceType: NodePort
+    nodePort: 30748
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+mongodb:
+  image: mongo:8.0.14
+  pullPolicy: IfNotPresent
+  persistence:
+    enabled: true
+    storageClass: microk8s-hostpath
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi

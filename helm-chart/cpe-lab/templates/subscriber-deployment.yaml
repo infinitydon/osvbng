@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: osvbng-cpe-lab
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: osvbng-cpe-lab
+  template:
+    metadata:
+      labels:
+        app: osvbng-cpe-lab
+      annotations:
+        k8s.v1.cni.cncf.io/networks: osvbng-cpe-access
+        checksum/config: {{ include (print $.Template.BasePath "/subscriber-config.yaml") . | sha256sum }}
+    spec:
+      nodeSelector:
+        {{- toYaml .Values.subscriberLab.nodeSelector | nindent 8 }}
+      {{- with .Values.subscriberLab.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bngblaster
+          image: {{ .Values.subscriberLab.bngblasterImage | quote }}
+          command: ["bngblaster"]
+          args: ["-C", "/config/bngblaster.json", "-S", "/run/shared/bngblaster.sock", "-L", "/run/shared/bngblaster.log", "-l", "info", "-l", "dhcp"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: tun
+              mountPath: /dev/net/tun
+            - name: runtime
+              mountPath: /run/shared
+            - name: netns
+              mountPath: /var/run/netns
+              mountPropagation: Bidirectional
+        - name: cpe-manager
+          image: {{ .Values.subscriberLab.cpeToolsImage | quote }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              trap 'jobs -p | xargs -r kill; exit 0' TERM INT
+              for id in $(seq 1 {{ .Values.subscriberLab.sessions }}); do
+                until ip -4 -o addr show dev "bbl${id}" 2>/dev/null | grep -q 'inet '; do sleep 1; done
+                address=$(ip -4 -o addr show dev "bbl${id}" | awk '{print $4}' | cut -d/ -f1)
+                ip netns add "cpe${id}"
+                ip link set "bbl${id}" netns "cpe${id}"
+                ip netns exec "cpe${id}" ip link set lo up
+                ip netns exec "cpe${id}" ip link set "bbl${id}" up
+                ip netns exec "cpe${id}" ip address replace "${address}/32" dev "bbl${id}"
+                ip netns exec "cpe${id}" ip route replace default dev "bbl${id}"
+                sed -e "s/__SERIAL__/{{ .Values.subscriberLab.cpe.serialPrefix }}-${id}/g" -e "s/__IPV4__/${address}/g" /config/cpe-profile.yaml > "/run/shared/cpe-${id}.yaml"
+                {{- if .Values.subscriberLab.cpe.enabled }}
+                (while true; do
+                  ip netns exec "cpe${id}" /usr/local/bin/cpe-sim --profile="/run/shared/cpe-${id}.yaml" --acs-url="http://{{ .Values.genieacs.cwmp.externalHost }}:{{ .Values.genieacs.cwmp.externalPort }}/" --seed="${id}" --log-level=info || true
+                  sleep 5
+                done) > "/run/shared/cpe-${id}.log" 2>&1 &
+                {{- end }}
+                echo "CPE ${id}: ${address} in netns cpe${id}"
+              done
+              wait
+          securityContext:
+            privileged: true
+          readinessProbe:
+            exec:
+              command: ["sh", "-ec", "test $(ip netns list | wc -l) -eq {{ .Values.subscriberLab.sessions }}"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: runtime
+              mountPath: /run/shared
+            - name: netns
+              mountPath: /var/run/netns
+              mountPropagation: Bidirectional
+        - name: ue-api
+          image: {{ .Values.subscriberLab.ueApiImage | quote }}
+          env:
+            - name: BNGBLASTER_SOCKET
+              value: /run/shared/bngblaster.sock
+            - name: UE_SESSION_CAPACITY
+              value: {{ .Values.subscriberLab.sessions | quote }}
+            - name: UE_SESSION_TIMEOUT
+              value: {{ .Values.subscriberLab.sessionTimeoutSeconds | quote }}
+            - name: UE_API_PORT
+              value: {{ .Values.subscriberLab.apiPort | quote }}
+            - name: UE_NETNS_PREFIX
+              value: cpe
+          securityContext:
+            privileged: true
+          ports:
+            - name: api
+              containerPort: {{ .Values.subscriberLab.apiPort }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: api
+          volumeMounts:
+            - name: runtime
+              mountPath: /run/shared
+            - name: netns
+              mountPath: /var/run/netns
+              mountPropagation: Bidirectional
+      volumes:
+        - name: config
+          configMap:
+            name: osvbng-cpe-lab-config
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: runtime
+          emptyDir: {}
+        - name: netns
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ue-test-api
+spec:
+  selector:
+    app: osvbng-cpe-lab
+  ports:
+    - name: http
+      port: {{ .Values.subscriberLab.apiPort }}
+      targetPort: api

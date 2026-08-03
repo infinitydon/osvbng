@@ -37,17 +37,8 @@ osvbng:
       networks:
         - prefix: 100.64.100.0/24
 
-bngblaster:
-  enabled: false
-  sessions: 20
-
-trafficTest:
-  enabled: true
-  sessionCapacity: 20
-  imagePullSecrets:
-    - name: ghcr-pull
-
 radius:
   enabled: true
   existingSecret: osvbng-radius
-  autoProvisionTrafficTestUsers: true
+  autoProvisionSubscriberUsers: true
+  subscriberCapacity: 20
