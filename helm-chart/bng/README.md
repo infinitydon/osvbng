@@ -8,6 +8,11 @@ native PBA CGNAT, optional active/standby HA, BGP, and an optional
 FreeRADIUS 3.2.7/PostgreSQL profile. Subscriber simulation now lives in the
 separate `../cpe-lab` chart.
 
+An experimental image built from upstream HA-fix PR #400 is available through
+`examples/ha-fix-image-values.yaml`. It is not the chart default because the
+Kubernetes/VFIO graceful-switchover validation still produced
+`ipoe-input: No such IPoE session` with `AccessIfIndex: 0` after promotion.
+
 ## Prerequisites
 
 - Kubernetes 1.32 or newer, Multus, and hugepage support.

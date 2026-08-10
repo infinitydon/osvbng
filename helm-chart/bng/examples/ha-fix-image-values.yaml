@@ -1,0 +1,9 @@
+# Experimental upstream PR #400 build. This is not an official OSVBNG release.
+# Source merge commit: b76ee3dadaa7de2367bb8b8522049729e6bf3ba4
+# Binary version: v0.16.1-dev-b76ee3d
+#
+# Lab validation preserved synchronized session records during graceful
+# switchover, but promoted sessions still had AccessIfIndex 0 and did not
+# forward in the Kubernetes/VFIO topology. Use only for further testing.
+osvbng:
+  image: "ghcr.io/infinitydon/osvbng:ha-fix-b76ee3d@sha256:9b589daf24642f14266e37e463fde85267ef661c6019291e30266353b118d3a8"
