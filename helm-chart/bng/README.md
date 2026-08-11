@@ -9,9 +9,12 @@ FreeRADIUS 3.2.7/PostgreSQL profile. Subscriber simulation now lives in the
 separate `../cpe-lab` chart.
 
 An experimental image built from upstream HA-fix PR #400 is available through
-`examples/ha-fix-image-values.yaml`. It is not the chart default because the
-Kubernetes/VFIO graceful-switchover validation still produced
-`ipoe-input: No such IPoE session` with `AccessIfIndex: 0` after promotion.
+`examples/ha-fix-image-values.yaml`. Upstream test 37 passed 20/20, including
+fresh bidirectional post-switchover traffic with no session flaps. The
+Kubernetes/VFIO topology also restored all 20 sessions and CGNAT mappings, but
+traffic took 244 seconds to recover while the virtual MAC moved between worker
+VMs. The image therefore remains experimental until L2/FDB convergence is
+made suitably fast for HA.
 
 ## Prerequisites
 

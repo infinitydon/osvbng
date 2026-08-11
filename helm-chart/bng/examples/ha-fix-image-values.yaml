@@ -2,8 +2,9 @@
 # Source merge commit: b76ee3dadaa7de2367bb8b8522049729e6bf3ba4
 # Binary version: v0.16.1-dev-b76ee3d
 #
-# Lab validation preserved synchronized session records during graceful
-# switchover, but promoted sessions still had AccessIfIndex 0 and did not
-# forward in the Kubernetes/VFIO topology. Use only for further testing.
+# Upstream test 37 passed 20/20 against this commit. The Kubernetes/VFIO lab
+# also restored all 20 sessions, CGNAT mappings, and forwarding, but traffic
+# recovery took 244 seconds while the virtual MAC moved across worker VMs.
+# Use only for further testing until that L2/FDB convergence is corrected.
 osvbng:
-  image: "ghcr.io/infinitydon/osvbng:ha-fix-b76ee3d@sha256:9b589daf24642f14266e37e463fde85267ef661c6019291e30266353b118d3a8"
+  image: "ghcr.io/infinitydon/osvbng:ha-fix-b76ee3d@sha256:abe41c540619e02e7cc8e3eb105302f930f0d123dca93017831306a5f65285c0"
